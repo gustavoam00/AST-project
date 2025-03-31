@@ -50,8 +50,6 @@ if __name__ == "__main__":
         "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;"
     ]
 
-    TEST = SQL_TEST_QUERY
-
     test(SQL_TEST_QUERY)
 
     # BUGS[0:34]
