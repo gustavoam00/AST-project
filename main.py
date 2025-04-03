@@ -1,8 +1,10 @@
 import docker
 import logging
 from bugs import BUGS
+from tqdm import tqdm
+from query_generator import SQLiteTable, SQLiteQuery
 
-# logging.disable(logging.INFO) 
+logging.disable(logging.INFO) 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 SQLITE_VERSIONS = ["sqlite3-3.26.0", "sqlite3-3.39.4"]
@@ -49,11 +51,30 @@ if __name__ == "__main__":
         "INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3);",
         "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;"
     ]
-
-    test(SQL_TEST_QUERY)
+    # test(SQL_TEST_QUERY)
 
     # BUGS[0:34]
-    test(BUGS[0])
+    # test(BUGS[0])
+
+    table_name = "test1"
+    table = SQLiteTable(table_name)
+    table.create(rows=100, max_cols=1)
+    script = table.get_script()
+    script_len = len(script)
+
+    tables_cols = {}
+    tables_cols[table_name] = table.get_cols()
+    query_gen = SQLiteQuery([table_name], tables_cols)
+    
+    for i in tqdm(range(100000)):
+        query = query_gen.select(table_name, size=2)
+        script.append(query)
+        if i % 500 == 0:
+            test(script) #no bugs found
+            script = script[:script_len]
+        
+
+
 
 
 
