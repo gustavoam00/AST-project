@@ -39,7 +39,7 @@ def test(query):
 
     if res1 != res2:
         logging.warning("Bug found!")
-        logging.info("Query:\n  " + "\n  ".join(SQL_TEST_QUERY))
+        logging.info("Query:\n  " + "\n  ".join(query))
     else:
         logging.info("No bug detected.")
 
@@ -51,27 +51,27 @@ if __name__ == "__main__":
         "INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3);",
         "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;"
     ]
-    # test(SQL_TEST_QUERY)
+    test(SQL_TEST_QUERY)
 
-    # BUGS[0:34]
-    # test(BUGS[0])
+    BUGS[0:34]
+    test(BUGS[0])
 
-    table_name = "test1"
-    table = SQLiteTable(table_name)
-    table.create(rows=100, max_cols=1)
-    script = table.get_script()
-    script_len = len(script)
+    # table_name = "test1"
+    # table = SQLiteTable(table_name)
+    # table.create(rows=100, max_cols=1)
+    # script = table.get_script()
+    # script_len = len(script)
 
-    tables_cols = {}
-    tables_cols[table_name] = table.get_cols()
-    query_gen = SQLiteQuery([table_name], tables_cols)
+    # tables_cols = {}
+    # tables_cols[table_name] = table.get_cols()
+    # query_gen = SQLiteQuery([table_name], tables_cols)
     
-    for i in tqdm(range(100000)):
-        query = query_gen.select(table_name, size=2)
-        script.append(query)
-        if i % 500 == 0:
-            test(script) #no bugs found
-            script = script[:script_len]
+    # for i in tqdm(range(100000)):
+    #     query = query_gen.select(table_name, size=2)
+    #     script.append(query)
+    #     if i % 500 == 0:
+    #         test(script) #no bugs found
+    #         script = script[:script_len]
         
 
 

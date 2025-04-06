@@ -109,7 +109,63 @@ class SQLiteQuery:
         select = f"SELECT {', '.join(col_subset)} FROM {table_name} WHERE {' OR '.join(where_set)};"
         return select
         
-    def join(self, tables):
+    def join(self):
+        #TODO add where clause
+        
+        if len(self.tables) < 2:
+            return None  # Not enough tables
+
+        table1, table2 = random.sample(self.tables, 2)
+        
+        join_type = random.choice(["INNER JOIN", "LEFT JOIN", "CROSS JOIN"]) # RIGHT and FULL not supported?
+
+        col1_names = list(self.tables_cols[table1].keys()) #maybe helper function that creates subsets of cols of a table
+        size1 = random.randint(1, len(col1_names))
+        col1_subset = random.sample(col1_names, size1)
+        
+        col2_names = list(self.tables_cols[table2].keys())
+        size2 = random.randint(1, len(col2_names))
+        col2_subset = random.sample(col2_names, size2)
+        
+        col_subset = col1_subset + col2_subset
+        col1 = random.choice(col1_names)
+        col2 = random.choice(col2_names) 
+        
+
+        query = (
+            f"SELECT {', '.join(col_subset)} "
+            f"FROM {table1} {join_type} {table2} "
+            f"ON {table1}.{col1} = {table2}.{col2};"
+        )
+
+        return query
+        
+    
+    def index(self):
+        # TODO add where clause in index
+        # TODO use literals instead of col names
+        
+        table = random.choice(self.tables)
+        col_names = list(self.tables_cols[table].keys())
+        
+        idx_name = "idx_"+random_string(6)
+        
+        num_cols = random.randint(1, min(2, len(col_names)))
+        selected_cols = random.sample(col_names, num_cols)
+
+        index_parts = []
+        for col in selected_cols:
+            if random.random() < 0.3:
+                func = random.choice(["abs", "lower", "upper", "length"])
+                index_parts.append(f"{func}({col})")
+            else:
+                index_parts.append(col)
+        
+        index_expr = ", ".join(index_parts)
+        
+        return f"CREATE INDEX {idx_name} ON {table}({index_expr});"
+    
+    def view(self):
         # TODO
         return 0
     
