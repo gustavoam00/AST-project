@@ -13,10 +13,17 @@ MIN_INT = -9223372036854775808
 def random_string(length=10):
     return ''.join(random.choices(string.ascii_lowercase, k=length))
 
-class SQLiteTable:
+class DatabaseObject:
     """
     Randomly generate table queries to create table and insert rows.
+    
+    I think instead this should be just a class that keeps track of objects (ex. tables, indexes) and return the string related to their actions, 
+        that way in the query class we can have multiple tables, and in it we accumulate the whole script 
+        as well as call the different actions (ex. create, insert, etc) accordingly to generate random query.
+        That would allow us to not have to instantly insert, as well as insert more or deleting in between other commands (ex. join). 
+        
     """
+    
     def __init__(self, name):
         self.name = name
         self.cols = {}
@@ -44,15 +51,33 @@ class SQLiteTable:
         create_stmt = f"CREATE TABLE IF NOT EXISTS {self.name} ({', '.join(columns_def)});"
         self.script.append(create_stmt)
 
-        for i in range(rows):
-            self.insert()
+        # for i in range(rows):
+        #     self.insert()
+            
+    def index(self):
+        # TODO add where clause in index
+        # TODO use literals instead of col names
+        
+        table = random.choice(self.tables)
+        col_names = list(self.tables_cols[table].keys())
+        
+        idx_name = "idx_"+random_string(6)
+        
+        num_cols = random.randint(1, min(2, len(col_names)))
+        selected_cols = random.sample(col_names, num_cols)
 
-    def insert(self):
-        cols = ", ".join(self.cols.keys())
-        values = ", ".join(self.generate_random_values())
-        insert = f"INSERT INTO {self.name} ({cols}) VALUES ({values});"
-        self.script.append(insert)
-        return insert
+        index_parts = []
+        for col in selected_cols:
+            if random.random() < 0.3:
+                func = random.choice(["abs", "lower", "upper", "length"])
+                index_parts.append(f"{func}({col})")
+            else:
+                index_parts.append(col)
+        
+        index_expr = ", ".join(index_parts)
+        
+        return f"CREATE INDEX {idx_name} ON {table}({index_expr});"
+    
         
     def get_script(self):
         return self.script
@@ -87,16 +112,50 @@ class SQLiteTable:
                 default_value = "0" if col_type == "INTEGER" else "'default'"
                 constraint = constraint % default_value
             constraints.append(constraint)
-         
+        
         return constraints
+    
+    ## DDL - Data Manipulation Language
+    
+    def insert(self):
+        # TODO add or and where
+        
+        cols = ", ".join(self.cols.keys())
+        values = ", ".join(self.generate_random_values())
+        insert = f"INSERT INTO {self.name} ({cols}) VALUES ({values});"
+        # self.script.append(insert)
+        return insert
+    
+    def update(self):
+        # TODO
+        pass
+    
+    def delete(self):
+        # TODO
+        pass
+    
+    def replace(self):
+        # TODO
+        pass
+    
+    ## 
+
 
 class SQLiteQuery:
     """
     Randomly generate queries given table names and table columns.
     """
-    def __init__(self, tables, tables_cols):
-        self.tables = tables
-        self.tables_cols = tables_cols
+    # def __init__(self, tables, tables_cols):
+    #     self.tables = tables
+    #     self.tables_cols = tables_cols
+    def __init__(self):
+        self.tables = []
+        
+    def generateQuery(self):
+        # I think this would be the main method of the class to generate the whole Query
+        # It would start by generating its own tables using the class, calling other methods to perform actions
+        #   and accumate the entire script that is returned at the end
+        pass
         
     def select(self, table_name, size=1):
         col_names = list(self.tables_cols[table_name].keys())
@@ -108,7 +167,7 @@ class SQLiteQuery:
         
         select = f"SELECT {', '.join(col_subset)} FROM {table_name} WHERE {' OR '.join(where_set)};"
         return select
-        
+    
     def join(self):
         #TODO add where clause
         
@@ -141,34 +200,6 @@ class SQLiteQuery:
         return query
         
     
-    def index(self):
-        # TODO add where clause in index
-        # TODO use literals instead of col names
-        
-        table = random.choice(self.tables)
-        col_names = list(self.tables_cols[table].keys())
-        
-        idx_name = "idx_"+random_string(6)
-        
-        num_cols = random.randint(1, min(2, len(col_names)))
-        selected_cols = random.sample(col_names, num_cols)
-
-        index_parts = []
-        for col in selected_cols:
-            if random.random() < 0.3:
-                func = random.choice(["abs", "lower", "upper", "length"])
-                index_parts.append(f"{func}({col})")
-            else:
-                index_parts.append(col)
-        
-        index_expr = ", ".join(index_parts)
-        
-        return f"CREATE INDEX {idx_name} ON {table}({index_expr});"
-    
-    def view(self):
-        # TODO
-        return 0
-    
     def generate_random_where(self, table_name):
         col = random.choice(list(self.tables_cols[table_name].keys()))
         dtype = self.tables_cols[table_name][col]
@@ -190,6 +221,8 @@ class SQLiteQuery:
             val = "NULL"
             
         return f"{table_name}.{col} {op} {val}" 
+    
+    
 
     
     
