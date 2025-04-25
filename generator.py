@@ -36,9 +36,6 @@ def random_name(prefix: str = "x", length: int = 5) -> str:
 def random_type() -> str:
     return random.choice(SQL_TYPES)
 
-'''
-
-'''
 class SQLNode:
     def sql(self) -> str:
         raise NotImplementedError
@@ -75,20 +72,33 @@ class Where(SQLNode):
     def random(table: "Table", max_depth: int = 3, p_depth: float = 0.3) -> "Where":
         if max_depth == 0 or random.random() < p_depth:
             return Comparison.random(table)
-        else: #if random.random() < p_depth:
+        else:
             left = Where.random(table, max_depth - 1, p_depth)
             right = Where.random(table, max_depth - 1, p_depth)
             op = random.choice(["AND", "OR"])
             return BooleanExpr(left, right, op)
-        '''else:
-            right = Select.random(table, sample = 1)
-            right.columns[0]
-            left = random.choice(VALUES)
-        '''
+        
+    #TODO
+    @staticmethod
+    def random_set(left: "Table", right: "Table", max_depth: int = 1, p_depth: float = 0.3) -> "Where":
+        if max_depth == 0 or random.random() < p_depth:
+            return Comparison.random(table)
+        else:
+            rh = Select.random(right, sample = 1)
+            col_selected = rh.columns[0]
+            lh_cols = []
+            for c in left.columns:
+                if c.dtype == col_selected.dtype:
+                    lh_cols.append(c)
+            lh = random.choice(lh_cols)
+            op = random.choice(["IN", "NOT IN"])
+            return BooleanExpr(lh, rh, op)
+
+
 @dataclass
 class BooleanExpr(Where):
-    left: "BooleanExpr"
-    right: "BooleanExpr"
+    left: Where
+    right: Where
     operator: str 
 
     def sql(self) -> str:
