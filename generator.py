@@ -75,12 +75,16 @@ class Where(SQLNode):
     def random(table: "Table", max_depth: int = 3, p_depth: float = 0.3) -> "Where":
         if max_depth == 0 or random.random() < p_depth:
             return Comparison.random(table)
-        else:
+        else: #if random.random() < p_depth:
             left = Where.random(table, max_depth - 1, p_depth)
             right = Where.random(table, max_depth - 1, p_depth)
             op = random.choice(["AND", "OR"])
             return BooleanExpr(left, right, op)
-        
+        '''else:
+            right = Select.random(table, sample = 1)
+            right.columns[0]
+            left = random.choice(VALUES)
+        '''
 @dataclass
 class BooleanExpr(Where):
     left: "BooleanExpr"
@@ -205,11 +209,11 @@ class AlterTable(Table):
 @dataclass
 class Insert(SQLNode):
     table: str
-    columns: List[str]
+    columns: List[Column]
     values: List[str]
 
     def sql(self) -> str:
-        cols = ", ".join(self.columns)
+        cols = ", ".join([c.name for c in self.columns])
         vals = ", ".join(self.values)
         return f"INSERT INTO {self.table} ({cols}) VALUES ({vals});"
 
@@ -219,7 +223,7 @@ class Insert(SQLNode):
         vals = []
 
         for col in table.columns:
-            cols.append(col.name)
+            cols.append(col)
             if col.dtype == "INTEGER":
                 val = str(random.randint(0, 100))
             elif col.dtype == "TEXT":
@@ -243,7 +247,7 @@ class Join(SQLNode):
 
     def sql(self) -> str:
         return (
-            f"{self.left_table} {self.join_type} JOIN {self.right_table} "
+            f"{self.left_table} {self.join_type} JOIN {self.right_table} " +
             f"ON {self.left_table}.{self.left_column} = {self.right_table}.{self.right_column}"
         )
 
@@ -270,26 +274,32 @@ class Join(SQLNode):
 
 @dataclass
 class Select(SQLNode):
-    columns: List[str]
-    from_clause: Union[str, SQLNode, Join]
+    columns: List[Column]
+    from_clause: Union[Table, Join]
     where: Optional[Where] = None
-    group_by: Optional[List[str]] = None
-    order_by: Optional[List[str]] = None
+    group_by: Optional[List[Column]] = None
+    order_by: Optional[List[Column]] = None
 
     def sql(self) -> str:
-        base = f"SELECT {', '.join(self.columns)} FROM {self.from_clause.sql() if isinstance(self.from_clause, SQLNode) else self.from_clause}"
+        col_names = [c.name for c in self.columns]
+        base = f"SELECT {', '.join(col_names)} FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         if self.where:
             base += f" WHERE {self.where.sql()}"
         if self.group_by:
-            base += f" GROUP BY {', '.join(self.group_by)}"
+            group_names = [c.name for c in self.group_by]
+            base += f" GROUP BY {', '.join(group_names)}"
         if self.order_by:
-            base += f" ORDER BY {', '.join(self.order_by)}"
+            order_names = [c.name for c in self.order_by]
+            base += f" ORDER BY {', '.join(order_names)}"
         return base
 
     @staticmethod
-    def random(table: Table, rand_where: float = 0.9, rand_group: float = 0.3, rand_order: float = 0.3) -> "Select":
-        col_names = table.get_col_names()
-        selected_cols = random.sample(col_names, random.randint(1, len(col_names)))
+    def random(table: Table, rand_where: float = 0.9, rand_group: float = 0.3, rand_order: float = 0.3, sample: int = None) -> "Select":
+        cols = table.columns
+        if not sample:
+            selected_cols = random.sample(cols, random.randint(1, len(cols)))
+        else:
+            selected_cols = random.sample(cols, sample)
 
         where = Where.random(table) if random.random() < rand_where else None
         group_by = random.sample(selected_cols, k=1) if random.random() < rand_group else None
@@ -297,7 +307,7 @@ class Select(SQLNode):
 
         return Select(
             columns=selected_cols,
-            from_clause=table.name,
+            from_clause=table,
             where=where,
             group_by=group_by,
             order_by=order_by
@@ -307,7 +317,7 @@ class Select(SQLNode):
     def random_with_join(left: Table, right: Table, rand_where: float = 0.5) -> "Select":
         join_clause = Join.random(left, right)
 
-        combined_cols = left.get_col_names() + right.get_col_names()
+        combined_cols = left.columns + right.columns
         selected_cols = random.sample(combined_cols, k=random.randint(1, len(combined_cols)))
         where = Where.random(left) if random.random() < rand_where else None
 
@@ -348,10 +358,11 @@ class With(SQLNode):
     @staticmethod
     def random(table: Table) -> "With":
         with_name = random_name("with")
+        with_table = Table(with_name, table.columns)
         inner_select = Select.random(table)
         main_select = Select(
             columns=inner_select.columns,
-            from_clause=with_name
+            from_clause=with_table
         )
         return With(
             name=with_name,
@@ -391,15 +402,20 @@ class Trigger(SQLNode):
     name: str
     timing: str  # BEFORE or AFTER
     event: str  # INSERT, UPDATE, DELETE
-    table: str
+    table: Table
     when: Optional[Where] = None
     statements: List[SQLNode] = None 
 
     def sql(self) -> str:
-        base = f"CREATE TRIGGER {self.name} {self.timing} {self.event} ON {self.table}"
+        base = f"CREATE TRIGGER {self.name} {self.timing} {self.event} ON {self.table.name}"
         if self.when:
             base += f" WHEN {self.when.sql()}"
-        body = "\n".join(stmt.sql() for stmt in self.statements)
+        body = ""
+        for stmt in self.statements:
+            if isinstance(stmt, Insert):
+                body += stmt.sql() + "\n"
+            else:
+                body += ""
         return f"{base} BEGIN\n{body}\nEND;"
 
     @staticmethod
@@ -413,7 +429,7 @@ class Trigger(SQLNode):
         for _ in range(random.randint(1, 2)):
             body.append(Insert.random(table)) 
 
-        return Trigger(name, timing, event, table.name, when, body)
+        return Trigger(name, timing, event, table, when, body)
 
 if __name__ == "__main__":
     table = Table.random()
@@ -449,3 +465,4 @@ if __name__ == "__main__":
     print(join.sql())
     select_join = select_query.random_with_join(table, table2)
     print(select_join.sql())
+
