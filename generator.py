@@ -184,14 +184,14 @@ class AlterTable(Table):
             return f"ALTER TABLE {self.old_name} RENAME TO {self.name}"
         
     @staticmethod
-    def random_add(table: Union["Table", "AlterTable"]) -> "AlterTable":
+    def random_add(table: "Table") -> "AlterTable":
         new_col = Column.random()
         modified_col = table.columns
         modified_col.append(new_col)
         return AlterTable(name=table.name, new_col=new_col, columns=modified_col)
     
     @staticmethod
-    def random_col_rename(table: Union["Table", "AlterTable"]) -> "AlterTable":
+    def random_col_rename(table: "Table") -> "AlterTable":
         modified_cols = table.columns
         mod_col = random.choice(modified_cols)
         old_col = mod_col
@@ -199,7 +199,7 @@ class AlterTable(Table):
         return AlterTable(name=table.name, new_col=mod_col, mod_col=old_col, columns=modified_cols)
     
     @staticmethod
-    def random_tbl_rename(table: Union["Table", "AlterTable"]) -> "AlterTable":
+    def random_tbl_rename(table: "Table") -> "AlterTable":
         return AlterTable(name=random_name("tbl"), old_name= table.name, columns=table.columns)
     
 @dataclass
