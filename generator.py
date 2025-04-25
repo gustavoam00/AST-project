@@ -239,7 +239,7 @@ class AlterTable(Table):
     def random_col_rename(table: "Table") -> "AlterTable":
         modified_cols = table.columns
         mod_col = random.choice(modified_cols)
-        old_col = mod_col
+        old_col = Column(name=mod_col.name, dtype=mod_col.dtype)
         mod_col.name = random_name("col")
         return AlterTable(name=table.name, new_col=mod_col, mod_col=old_col, columns=modified_cols)
     
@@ -455,8 +455,8 @@ class Index(SQLNode):
 @dataclass
 class Trigger(SQLNode):
     name: str
-    timing: str  # BEFORE or AFTER
-    event: str  # INSERT, UPDATE, DELETE
+    timing: str
+    event: str 
     table: Table
     when: Optional[Where] = None
     statements: List[SQLNode] = None 
@@ -468,7 +468,7 @@ class Trigger(SQLNode):
         body = ""
         for stmt in self.statements:
             if isinstance(stmt, Insert):
-                body += stmt.sql() + "\n"
+                body += stmt.sql()
             else:
                 body += ""
         return f"{base} BEGIN\n{body}\nEND;"
@@ -486,80 +486,53 @@ class Trigger(SQLNode):
 
         return Trigger(name, timing, event, table, when, body)
     
-def randomQueryGen():
+def randomQueryGen(rand: List[bool], debug: bool = False, cycle: int = 10):
     tables = [Table.random()]
     query = tables[0].sql() + "\n"
-    for i in range(10):
-        if random.random() < 0.1:
-            table = AlterTable.random_tbl_rename(table)
+    for i in range(cycle):
+        table = random.choice(tables)
+        if random.random() < rand["alt_ren"] or debug:
+            new_table = AlterTable.random_tbl_rename(table)
+            tables.remove(table) # renamed name of table, table does not exist anymore
+            tables.append(new_table)
+            table = new_table
             query += table.sql() + "\n"
-        if random.random() < 0.1:
+        if random.random() < rand["alt_add"] or debug:
             table = AlterTable.random_add(table)
             query += table.sql() + "\n"
-        if random.random() < 0.1:
+        if random.random() < rand["alt_col"] or debug:
             table = AlterTable.random_col_rename(table)
             query += table.sql() + "\n"
-        if random.random() < 0.5:
+        if random.random() < rand["sel1"] or debug:
             query += Select.random(table).sql() + "\n"
-        if random.random() < 0.2:
+        if random.random() < rand["with"] or debug:
             query += With.random(table).sql() + "\n"
-        if random.random() < 0.2:
+        if random.random() < rand["view"] or debug:
             new_table = View.random(table)
             tables.append(new_table)
             query += new_table.sql() + "\n"
-        if random.random() < 0.1:
+        if random.random() < rand["idx"] or debug:
             query += Index.random(table).sql() + "\n"
-        if random.random() < 0.1:
+        if random.random() < rand["trg"] or debug:
             query += Trigger.random(table).sql() + "\n"
-        if random.random() < 0.5 and len(tables) > 1:
-            if table in tables:
-                tables.remove(table)
+        if (random.random() < rand["sel2"] and len(tables) > 1) or debug:
+            #if table in tables:
+            #    tables.remove(table)
             query += Select.random(table, other_tables=tables).sql() + "\n"
-            tables.append(table)
-        table = random.choice(tables)
+            #tables.append(table)
 
     return query
         
-
-
 if __name__ == "__main__":
-    print(randomQueryGen())
-    
-    '''
-    table = Table.random()
-    print(table.sql())
-    table = AlterTable.random_tbl_rename(table)
-    print(table.sql())
-    table = AlterTable.random_add(table)
-    print(table.sql())
-    table = AlterTable.random_col_rename(table)
-    print(table.sql())
-
-    select_query = Select.random(table, other_tables=[table])
-    with_query = With.random(table)
-    view_query = View.random(table)
-
-    print(select_query.sql())
-    print(with_query.sql())
-    print(view_query.sql())
-
-    for i in range(3):
-        col = Column.random().sql()
-        print(col)
-
-    index = Index.random(table)
-    print(index.sql())
-
-    trigger = Trigger.random(table)
-    print(trigger.sql())
-
-    table2 = Table.random()
-    print(table2.sql())
-    join = Join.random(table, table2)
-    print(join.sql())
-    select_join = select_query.random_with_join(table, table2)
-    print(select_join.sql())
-
-    for _ in range(5):
-        print(Select.random(table, other_tables=[table2]).sql())
-    '''
+    prob = {   
+        "alt_ren": 0.1, 
+        "alt_add": 0.1,
+        "alt_col": 0.1,
+        "sel1": 0.5,
+        "sel2": 0.5,
+        "with": 0.2,
+        "view": 0.2,
+        "idx": 0.1,
+        "trg": 0.1 
+    }
+    print(randomQueryGen(prob, debug=False, cycle=10))
