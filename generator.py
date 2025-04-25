@@ -280,7 +280,6 @@ class Insert(SQLNode):
     
 @dataclass
 class Join(SQLNode):
-    #TODO: implement other joins
     '''
     table1 INNER JOIN table2 
     '''
@@ -342,12 +341,19 @@ class Select(SQLNode):
 
     @staticmethod
     def random(table: Table, rand_where: float = 0.9, rand_group: float = 0.3, rand_order: float = 0.3, 
-               sample: int = None, other_tables: list[Table] = None) -> "Select":
+               sample: int = None, other_tables: list[Table] = None, rand_join: float = 0.3) -> "Select":
         cols = table.columns
         if not sample:
             selected_cols = random.sample(cols, random.randint(1, len(cols)))
         else:
             selected_cols = random.sample(cols, sample)
+
+        if other_tables and random.random() < rand_join:
+            left = table
+            right = random.choice(other_tables)
+            from_clause = Join.random(left, right)
+        else:
+            from_clause = table
 
         where = Where.random(table, other_tables=other_tables) if random.random() < rand_where else None
         group_by = random.sample(selected_cols, k=1) if random.random() < rand_group else None
@@ -355,7 +361,7 @@ class Select(SQLNode):
 
         return Select(
             columns=selected_cols,
-            from_clause=table,
+            from_clause=from_clause,
             where=where,
             group_by=group_by,
             order_by=order_by
@@ -376,18 +382,19 @@ class Select(SQLNode):
         )
 
 @dataclass
-class View(SQLNode):
+class View(Table):
     name: str
-    query: SQLNode
+    select: Select
+    columns: List[Column]
 
     def sql(self) -> str:
-        return f"CREATE VIEW {self.name} AS ({self.query.sql()})"
+        return f"CREATE VIEW {self.name} AS ({self.select.sql()})"
     
     @staticmethod
     def random(table: Table) -> "View":
         view_name = random_name("view")
-        query = Select.random(table)
-        return View(name=view_name, query=query)
+        select = Select.random(table)
+        return View(name=view_name, columns=select.columns, select=select)
         
 @dataclass
 class With(SQLNode):
@@ -478,8 +485,47 @@ class Trigger(SQLNode):
             body.append(Insert.random(table)) 
 
         return Trigger(name, timing, event, table, when, body)
+    
+def randomQueryGen():
+    tables = [Table.random()]
+    query = tables[0].sql() + "\n"
+    for i in range(10):
+        if random.random() < 0.1:
+            table = AlterTable.random_tbl_rename(table)
+            query += table.sql() + "\n"
+        if random.random() < 0.1:
+            table = AlterTable.random_add(table)
+            query += table.sql() + "\n"
+        if random.random() < 0.1:
+            table = AlterTable.random_col_rename(table)
+            query += table.sql() + "\n"
+        if random.random() < 0.5:
+            query += Select.random(table).sql() + "\n"
+        if random.random() < 0.2:
+            query += With.random(table).sql() + "\n"
+        if random.random() < 0.2:
+            new_table = View.random(table)
+            tables.append(new_table)
+            query += new_table.sql() + "\n"
+        if random.random() < 0.1:
+            query += Index.random(table).sql() + "\n"
+        if random.random() < 0.1:
+            query += Trigger.random(table).sql() + "\n"
+        if random.random() < 0.5 and len(tables) > 1:
+            if table in tables:
+                tables.remove(table)
+            query += Select.random(table, other_tables=tables).sql() + "\n"
+            tables.append(table)
+        table = random.choice(tables)
+
+    return query
+        
+
 
 if __name__ == "__main__":
+    print(randomQueryGen())
+    
+    '''
     table = Table.random()
     print(table.sql())
     table = AlterTable.random_tbl_rename(table)
@@ -516,4 +562,4 @@ if __name__ == "__main__":
 
     for _ in range(5):
         print(Select.random(table, other_tables=[table2]).sql())
-
+    '''
