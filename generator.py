@@ -3,11 +3,11 @@ import string
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
-#random.seed(42)
+random.seed(42)
 
 SQL_TYPES = ["INTEGER", "TEXT", "REAL"]
 SQL_CONSTRAINTS = ["PRIMARY KEY", "UNIQUE", "NOT NULL", "CHECK", "DEFAULT"]
-VALUES = {
+VALUES = { # put interesting values to test here
     "INTEGER": [0, 1, -1, 
                 2**31-1, -2**31, 
                 2**63-1, -2**63,
@@ -16,7 +16,7 @@ VALUES = {
                 0x7FFFFFFF, 0x80000000],
     "TEXT": ["", " ", "a", "abc", " "*1000, 
              "' OR 1=1; --", "\x00\x01\x02", 
-             "A"*10000, "DROP TABLE test;", 
+             "DROP TABLE test;", #"A"*10000,
              "\"quoted\"", "'quoted'", "NULL"],
     "REAL": [0.0, -0.0, 1.0, -1.0,
              3.14159, 2.71828,
@@ -39,9 +39,12 @@ def random_type() -> str:
 class SQLNode:
     def sql(self) -> str:
         raise NotImplementedError
-        
+    
 @dataclass
 class Comparison(SQLNode):
+    '''
+    Comaparison: column OP value
+    '''
     column: str
     operator: str
     value: str
@@ -65,38 +68,63 @@ class Comparison(SQLNode):
 
 @dataclass
 class Where(SQLNode):
+    '''
+    WHERE BooleanExpr|Comparison|InSubquery
+    '''
     def sql(self) -> str:
         raise NotImplementedError
 
     @staticmethod
-    def random(table: "Table", max_depth: int = 3, p_depth: float = 0.3) -> "Where":
-        if max_depth == 0 or random.random() < p_depth:
+    def random(table: "Table", max_depth: int = 3, p_depth: float = 0.3, 
+               other_tables: List["Table"] = None, p_sub: float = 0.3) -> "Where":
+        other_tables = other_tables or []
+
+        if max_depth <= 0 or random.random() < p_depth:
+            if other_tables and random.random() < 1:
+                return InSubquery.random(table, other_tables)
             return Comparison.random(table)
         else:
             left = Where.random(table, max_depth - 1, p_depth)
             right = Where.random(table, max_depth - 1, p_depth)
             op = random.choice(["AND", "OR"])
             return BooleanExpr(left, right, op)
-        
-    #TODO
-    @staticmethod
-    def random_set(left: "Table", right: "Table", max_depth: int = 1, p_depth: float = 0.3) -> "Where":
-        if max_depth == 0 or random.random() < p_depth:
-            return Comparison.random(table)
-        else:
-            rh = Select.random(right, sample = 1)
-            col_selected = rh.columns[0]
-            lh_cols = []
-            for c in left.columns:
-                if c.dtype == col_selected.dtype:
-                    lh_cols.append(c)
-            lh = random.choice(lh_cols)
-            op = random.choice(["IN", "NOT IN"])
-            return BooleanExpr(lh, rh, op)
 
+@dataclass
+class InSubquery(Where):
+    '''
+    InSubquery: WHERE col IN (SELECT other_col FROM other_table WHERE ...)
+    '''
+    column: "Column" 
+    subquery: "Select"
+
+    def sql(self) -> str:
+        return f"{self.column.name} IN ({self.subquery.sql()})"
+
+    @staticmethod
+    def random(table: "Table", other_tables: List["Table"]) -> "InSubquery":
+        column = random.choice(table.columns)
+        other_table = random.choice(other_tables)
+
+        matching_columns = [col for col in other_table.columns if col.dtype == column.dtype]
+        if not matching_columns:
+            sub_col = random.choice(other_table.columns)
+        else:
+            sub_col = random.choice(matching_columns)
+            
+        where_clause = Where.random(other_table, max_depth=2)
+        subquery = Select(
+            columns=[sub_col],
+            from_clause=other_table,
+            where=where_clause
+        )
+
+        return InSubquery(column=column, subquery=subquery)
 
 @dataclass
 class BooleanExpr(Where):
+    '''
+    Example: a < b
+    '''
     left: Where
     right: Where
     operator: str 
@@ -153,6 +181,9 @@ class Column:
 
 @dataclass
 class Table(SQLNode):
+    '''
+    CREATE TABLE ...
+    '''
     name: str
     columns: List[Column]
 
@@ -249,20 +280,24 @@ class Insert(SQLNode):
     
 @dataclass
 class Join(SQLNode):
-    left_table: str
-    right_table: str
-    left_column: str
-    right_column: str
-    join_type: str = "INNER"  # or LEFT, RIGHT, FULL (SQLite supports INNER, LEFT)
+    #TODO: implement other joins
+    '''
+    table1 INNER JOIN table2 
+    '''
+    left_table: Table
+    right_table: Table
+    left_column: Column
+    right_column: Column
+    join_type: str
 
     def sql(self) -> str:
         return (
-            f"{self.left_table} {self.join_type} JOIN {self.right_table} " +
-            f"ON {self.left_table}.{self.left_column} = {self.right_table}.{self.right_column}"
+            f"{self.left_table.name} {self.join_type} JOIN {self.right_table.name} " +
+            f"ON {self.left_table.name}.{self.left_column.name} = {self.right_table.name}.{self.right_column.name}"
         )
 
     @staticmethod
-    def random(left: "Table", right: "Table") -> "Join":
+    def random(left: "Table", right: "Table", join_type: str = None) -> "Join":
         left_cols = [c for c in left.columns if c.dtype in {"INTEGER", "TEXT"}]
         right_cols = [c for c in right.columns if c.dtype in {"INTEGER", "TEXT"}]
 
@@ -273,12 +308,14 @@ class Join(SQLNode):
             left_col = random.choice(left_cols)
             right_col = random.choice(right_cols)
 
-        join_type = random.choice(["INNER", "LEFT"])
+        if not join_type:
+            join_type = random.choice(["INNER", "LEFT", "CROSS"])
+            
         return Join(
-            left_table=left.name,
-            right_table=right.name,
-            left_column=left_col.name,
-            right_column=right_col.name,
+            left_table=left,
+            right_table=right,
+            left_column=left_col,
+            right_column=right_col,
             join_type=join_type
         )
 
@@ -304,14 +341,15 @@ class Select(SQLNode):
         return base
 
     @staticmethod
-    def random(table: Table, rand_where: float = 0.9, rand_group: float = 0.3, rand_order: float = 0.3, sample: int = None) -> "Select":
+    def random(table: Table, rand_where: float = 0.9, rand_group: float = 0.3, rand_order: float = 0.3, 
+               sample: int = None, other_tables: list[Table] = None) -> "Select":
         cols = table.columns
         if not sample:
             selected_cols = random.sample(cols, random.randint(1, len(cols)))
         else:
             selected_cols = random.sample(cols, sample)
 
-        where = Where.random(table) if random.random() < rand_where else None
+        where = Where.random(table, other_tables=other_tables) if random.random() < rand_where else None
         group_by = random.sample(selected_cols, k=1) if random.random() < rand_group else None
         order_by = random.sample(selected_cols, k=1) if random.random() < rand_order else None
 
@@ -451,7 +489,7 @@ if __name__ == "__main__":
     table = AlterTable.random_col_rename(table)
     print(table.sql())
 
-    select_query = Select.random(table)
+    select_query = Select.random(table, other_tables=[table])
     with_query = With.random(table)
     view_query = View.random(table)
 
@@ -475,4 +513,7 @@ if __name__ == "__main__":
     print(join.sql())
     select_join = select_query.random_with_join(table, table2)
     print(select_join.sql())
+
+    for _ in range(5):
+        print(Select.random(table, other_tables=[table2]).sql())
 
