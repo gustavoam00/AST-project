@@ -1,10 +1,9 @@
 import random
-import sys
 import string
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Union
+from typing import List, Optional, Union
 
-random.seed(42)
+#random.seed(42)
 
 SQL_TYPES = ["INTEGER", "TEXT", "REAL"]
 SQL_CONSTRAINTS = ["PRIMARY KEY", "UNIQUE", "NOT NULL", "CHECK", "DEFAULT"]
@@ -37,12 +36,15 @@ def random_name(prefix: str = "x", length: int = 5) -> str:
 def random_type() -> str:
     return random.choice(SQL_TYPES)
 
+'''
+
+'''
 class SQLNode:
     def sql(self) -> str:
         raise NotImplementedError
         
 @dataclass
-class Comparison:
+class Comparison(SQLNode):
     column: str
     operator: str
     value: str
@@ -81,8 +83,8 @@ class Where(SQLNode):
         
 @dataclass
 class BooleanExpr(Where):
-    left: Where
-    right: Where
+    left: "BooleanExpr"
+    right: "BooleanExpr"
     operator: str 
 
     def sql(self) -> str:
@@ -175,32 +177,30 @@ class AlterTable(Table):
 
     def sql(self) -> str:
         if self.mod_col:
-            return f"ALTER TABLE {self.name} RENAME {self.mod_col.sql()} TO {self.new_col.sql()};"
+            return f"ALTER TABLE {self.name} RENAME {self.mod_col.name} TO {self.new_col.name};"
         elif self.new_col:
-            return f"ALTER TABLE {self.name} ADD COLUMN {self.new_col.sql()};"
+            return f"ALTER TABLE {self.name} ADD COLUMN {self.new_col.name};"
         else:
             return f"ALTER TABLE {self.old_name} RENAME TO {self.name}"
         
-
     @staticmethod
-    def random_add(self, table: Union["Table", "AlterTable"]) -> "AlterTable":
-        self.new_col = Column.random()
+    def random_add(table: Union["Table", "AlterTable"]) -> "AlterTable":
+        new_col = Column.random()
         modified_col = table.columns
-        modified_col.append(self.new_col)
-        return AlterTable(name=table.name, columns=modified_col)
+        modified_col.append(new_col)
+        return AlterTable(name=table.name, new_col=new_col, columns=modified_col)
     
     @staticmethod
-    def random_col_rename(self, table: Union["Table", "AlterTable"]) -> "AlterTable":
-        modified_col = table.columns
-        self.mod_col = random.choice(modified_col)
-        self.new_col = self.mod_col
-        self.new_col.name = random_name("col")
-        return AlterTable(name=table.name, columns=modified_col)
+    def random_col_rename(table: Union["Table", "AlterTable"]) -> "AlterTable":
+        modified_cols = table.columns
+        mod_col = random.choice(modified_cols)
+        old_col = mod_col
+        mod_col.name = random_name("col")
+        return AlterTable(name=table.name, new_col=mod_col, mod_col=old_col, columns=modified_cols)
     
     @staticmethod
-    def random_tbl_rename(self, table: Union["Table", "AlterTable"]) -> "AlterTable":
-        self.old_name = table.name
-        return AlterTable(name=random_name("tbl"), columns=table.columns)
+    def random_tbl_rename(table: Union["Table", "AlterTable"]) -> "AlterTable":
+        return AlterTable(name=random_name("tbl"), old_name= table.name, columns=table.columns)
     
 @dataclass
 class Insert(SQLNode):
@@ -317,7 +317,6 @@ class Select(SQLNode):
             where=where
         )
 
-    
 @dataclass
 class View(SQLNode):
     name: str
@@ -396,11 +395,11 @@ class Trigger(SQLNode):
     when: Optional[Where] = None
     statements: List[SQLNode] = None 
 
-    def to_sql(self) -> str:
+    def sql(self) -> str:
         base = f"CREATE TRIGGER {self.name} {self.timing} {self.event} ON {self.table}"
         if self.when:
-            base += f" WHEN {self.when.to_sql()}"
-        body = ";\n".join(stmt.to_sql() for stmt in self.statements) + ";"
+            base += f" WHEN {self.when.sql()}"
+        body = "\n".join(stmt.sql() for stmt in self.statements)
         return f"{base} BEGIN\n{body}\nEND;"
 
     @staticmethod
@@ -418,10 +417,13 @@ class Trigger(SQLNode):
 
 if __name__ == "__main__":
     table = Table.random()
-    alter = AlterTable.random_tbl_rename(table)
-
     print(table.sql())
-    print(alter.sql())
+    table = AlterTable.random_tbl_rename(table)
+    print(table.sql())
+    table = AlterTable.random_add(table)
+    print(table.sql())
+    table = AlterTable.random_col_rename(table)
+    print(table.sql())
 
     select_query = Select.random(table)
     with_query = With.random(table)
@@ -437,3 +439,13 @@ if __name__ == "__main__":
 
     index = Index.random(table)
     print(index.sql())
+
+    trigger = Trigger.random(table)
+    print(trigger.sql())
+
+    table2 = Table.random()
+    print(table2.sql())
+    join = Join.random(table, table2)
+    print(join.sql())
+    select_join = select_query.random_with_join(table, table2)
+    print(select_join.sql())
