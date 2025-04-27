@@ -13,15 +13,23 @@ VALUES = { # put interesting values to test here
                 2**63-1, -2**63,
                 9999999999999999999,
                 42, 1337,
-                0x7FFFFFFF, 0x80000000],
+                0x7FFFFFFF, 0x80000000,
+                ],
     "TEXT": ["", " ", "a", "abc", " "*1000, 
              "' OR 1=1; --", "\x00\x01\x02", 
              "DROP TABLE test;", #"A"*10000,
-             "\"quoted\"", "'quoted'", "NULL"],
+             "\"quoted\"", "'quoted'", "NULL",
+             ],
     "REAL": [0.0, -0.0, 1.0, -1.0,
              3.14159, 2.71828,
              float('inf'), float('-inf'), float('nan'),
-             1e-10, 1e10, 1e308, -1e308]
+             1e-10, 1e10, 1e308, -1e308,
+             ]
+}
+CALLABLE_VALUES = {
+    "INTEGER": lambda: random.randint(-1000, 1000),
+    "TEXT": lambda: random_name(prefix = "val", length=5),
+    "REAL": lambda: random.uniform(-1e5, 1e5)
 }
 OPS = {
     "INTEGER": ["=", "!=", ">", "<", ">=", "<="],
@@ -35,6 +43,15 @@ def random_name(prefix: str = "x", length: int = 5) -> str:
 
 def random_type() -> str:
     return random.choice(SQL_TYPES)
+
+def random_value(dtype) -> str:
+    if dtype in SQL_TYPES:
+        if random.random() < 0.2:
+            return str(CALLABLE_VALUES[dtype]())
+        else:
+            return str(random.choice(VALUES[dtype]))
+    else:
+        return "NULL"
 
 class SQLNode:
     def sql(self) -> str:
@@ -246,37 +263,156 @@ class AlterTable(Table):
     @staticmethod
     def random_tbl_rename(table: "Table") -> "AlterTable":
         return AlterTable(name=random_name("tbl"), old_name= table.name, columns=table.columns)
-    
+
 @dataclass
 class Insert(SQLNode):
+    """
+    TODO: add insert with select
+    Returning only for SQLite 3.35+ so no?
+    """
     table: str
     columns: List[Column]
-    values: List[str]
+    values: List[List[str]]
+    conflict_action: Optional[str]
+    default: bool
+    full:bool
 
     def sql(self) -> str:
+        query = "INSERT "
+        if self.conflict_action:
+            query+= f"OR {self.conflict_action} "
+            
+        if self.default:
+            return query+f"INTO {self.table} DEFAULT VALUES"
+        
         cols = ", ".join([c.name for c in self.columns])
-        vals = ", ".join(self.values)
-        return f"INSERT INTO {self.table} ({cols}) VALUES ({vals});"
+        vals_list = []
+        for row in self.values:
+            vals = ", ".join(row)
+            vals_list.append(f"({vals})")
+        all_vals = ", ".join(vals_list)
+            
+        if self.full:
+            query+= f"INTO {self.table} VALUES {all_vals}"
+        else:
+            query += f"INTO {self.table} ({cols}) VALUES {all_vals}"
+        return query
 
     @staticmethod
     def random(table: "Table") -> "Insert":
+        default = random.random() < 0.2
+        conflict_action = random.choice(["ROLLBACK", "ABORT", "FAIL", "IGNORE", "REPLACE"]) if random.random() < 0.2 else None
+        full = random.random() < 0.2
+        
+        if default:
+            return Insert(table=table.name, columns=[], values=[], conflict_action=conflict_action, default=True, full=False)
+        
+        num_cols = random.randint(1,len(table.columns)) if not full else len(table.columns)
+        cols = []
+        num_rows = random.randint(1,5)
+        vals = [[] for _ in range(num_rows)]
+
+        for col in random.sample(table.columns, num_cols):
+            cols.append(col)
+            for i in range(num_rows):
+                vals[i].append(random_value(col.dtype))
+
+        return Insert(table=table.name, columns=cols, values=vals, conflict_action=conflict_action, default=default, full=full)
+    
+@dataclass
+class Update(SQLNode):
+    table: str
+    columns: List[Column]
+    values: List[str]
+    where: Optional[Where] = None
+
+    def sql(self) -> str:
+        query = f"UPDATE {self.table} SET "
+        assignments = []
+        for column, value in zip(self.columns, self.values):
+            assignments.append(f"{column.name} = {value}")
+        query += ", ".join(assignments)
+        if self.where:
+            query += f" WHERE {self.where.sql()}"
+        return query
+
+    @staticmethod
+    def random(table: "Table") -> "Update":
         cols = []
         vals = []
 
         for col in table.columns:
             cols.append(col)
-            if col.dtype == "INTEGER":
-                val = str(random.randint(0, 100))
-            elif col.dtype == "TEXT":
-                val = f"'{random_name()[:5]}'"
-            elif col.dtype == "REAL":
-                val = f"{random.uniform(0, 100):.2f}"
-            else:
-                val = "NULL"
+            vals.append(random_value(col.dtype))
 
-            vals.append(val)
+        where = Where.random(table) if random.random() < 0.4 else None
+        return Update(table=table.name, columns=cols, values=vals, where=where)
+    
+@dataclass   
+class Delete(SQLNode):
+    table: str
+    where: Optional[Where] = None
 
-        return Insert(table=table.name, columns=cols, values=vals)
+    def sql(self) -> str:
+        query = f"DELETE FROM {self.table}"
+        if self.where:
+            query += f" WHERE {self.where.sql()}"
+        return query
+
+    @staticmethod
+    def random(table: "Table") -> "Delete":
+        where = Where.random(table) if random.random() < 0.95 else None
+        return Delete(table=table.name, where=where)
+    
+@dataclass
+class Replace(SQLNode):
+    """
+    TODO: add select
+    """
+    table: str
+    columns: List[Column]
+    values: List[List[str]]
+    default: bool
+    full:bool
+
+    def sql(self) -> str:
+        query = "REPLACE "
+        
+        if self.default:
+            return query+f"INTO {self.table} DEFAULT VALUES"
+        
+        cols = ", ".join([c.name for c in self.columns])
+        vals_list = []
+        for row in self.values:
+            vals = ", ".join(row)
+            vals_list.append(f"({vals})")
+        all_vals = ", ".join(vals_list)
+            
+        if self.full:
+            query+= f"INTO {self.table} VALUES {all_vals}"
+        else:
+            query += f"INTO {self.table} ({cols}) VALUES {all_vals}"
+        return query
+
+    @staticmethod
+    def random(table: "Table") -> "Replace":
+        default = random.random() < 0.2
+        full = random.random() < 0.2
+        
+        if default:
+            return Replace(table=table.name, columns=[], values=[], default=True, full=False)
+        
+        num_cols = random.randint(1,len(table.columns)) if not full else len(table.columns)
+        cols = []
+        num_rows = random.randint(1,5)
+        vals = [[] for _ in range(num_rows)]
+
+        for col in random.sample(table.columns, num_cols):
+            cols.append(col)
+            for i in range(num_rows):
+                vals[i].append(random_value(col.dtype))
+
+        return Replace(table=table.name, columns=cols, values=vals, default=default, full=full)
     
 @dataclass
 class Join(SQLNode):
