@@ -262,7 +262,7 @@ class NullCheck(Predicate):
 @dataclass
 class Where(SQLNode):
     '''
-    WHERE BooleanExpr|Comparison|InSubquery
+    WHERE Predicate/InSubquery/WHERE
     '''
     def sql(self) -> str:
         raise NotImplementedError 
@@ -288,7 +288,7 @@ class Where(SQLNode):
 @dataclass
 class InSubquery(Where):
     '''
-    InSubquery: WHERE col IN (SELECT other_col FROM other_table WHERE ...)
+    WHERE col IN (SELECT other_col FROM other_table WHERE ...)
     '''
     column: "Column" 
     subquery: "Select"
@@ -319,7 +319,7 @@ class InSubquery(Where):
 @dataclass
 class BooleanExpr(Where):
     '''
-    Example: a < b
+    a < b
     '''
     left: Where
     right: Where
@@ -330,6 +330,9 @@ class BooleanExpr(Where):
 
 @dataclass
 class Column:
+    '''
+    name dtype primary_key nullable unique check default
+    '''
     name: str
     dtype: str
     primary_key: bool = False
@@ -380,7 +383,7 @@ class Column:
 @dataclass
 class Table(SQLNode):
     '''
-    CREATE TABLE ...
+    CREATE TABLE name (columns)
     '''
     name: str
     columns: List[Column]
@@ -406,14 +409,19 @@ class Table(SQLNode):
     
 @dataclass
 class AlterTable(Table):
+    '''
+    ALTER TABLE name RENAME old_col TO new_col
+    ALTER TABLE name ADD COLUMN new_col
+    ALTER TABLE old_name RENAME TO name
+    '''
     name: str
     old_name: str = ""
     new_col: Optional[Column] = None
-    mod_col: Optional[Column] = None
+    old_col: Optional[Column] = None
 
     def sql(self) -> str:
-        if self.mod_col:
-            return f"ALTER TABLE {self.name} RENAME {self.mod_col.name} TO {self.new_col.name};"
+        if self.old_col:
+            return f"ALTER TABLE {self.name} RENAME {self.old_col.name} TO {self.new_col.name};"
         elif self.new_col:
             return f"ALTER TABLE {self.name} ADD COLUMN {self.new_col.name};"
         else:
@@ -428,15 +436,15 @@ class AlterTable(Table):
     
     @staticmethod
     def random_col_rename(table: "Table") -> "AlterTable":
-        modified_cols = table.columns
-        mod_col = random.choice(modified_cols)
+        mod_cols = table.columns
+        mod_col = random.choice(mod_cols)
         old_col = Column(name=mod_col.name, dtype=mod_col.dtype)
         mod_col.name = random_name("col")
-        return AlterTable(name=table.name, new_col=mod_col, mod_col=old_col, columns=modified_cols)
+        return AlterTable(name=table.name, new_col=mod_col, old_col=old_col, columns=mod_cols)
     
     @staticmethod
     def random_tbl_rename(table: "Table") -> "AlterTable":
-        return AlterTable(name=random_name("tbl"), old_name= table.name, columns=table.columns)
+        return AlterTable(name=random_name("tbl"), old_name=table.name, columns=table.columns)
 
 @dataclass
 class Insert(SQLNode):
@@ -590,7 +598,7 @@ class Replace(SQLNode):
 @dataclass
 class Join(SQLNode):
     '''
-    table1 INNER JOIN table2 
+    table1 INNER/LEFT/CROSS JOIN table2 
     '''
     left_table: Table
     right_table: Table
@@ -629,7 +637,7 @@ class Join(SQLNode):
 
 @dataclass
 class Select(SQLNode):
-    columns: List[Column]
+    columns: List[Union[Column, "Case"]]
     from_clause: Union[Table, Join]
     where: Optional[Where] = None
     group_by: Optional[List[Column]] = None
@@ -639,7 +647,7 @@ class Select(SQLNode):
     offset: Optional[int] = None
 
     def sql(self) -> str:
-        col_names = [c.name for c in self.columns]
+        col_names = [c.name if isinstance(c, Column) else c.sql() for c in self.columns]
         base = f"SELECT {', '.join(col_names)} FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         if self.where:
             base += f" WHERE {self.where.sql()}"
@@ -680,6 +688,7 @@ class Select(SQLNode):
         else:
             from_clause = table
 
+        selcase = [Case.random(table, random.choice(selected_cols))] if flip(0.2) else []
         where = Where.random(table, other_tables=other_tables) if flip(rand_where) else None
         group_by = random.sample(selected_cols, k=1) if flip(rand_group) else None
         order_by = random.sample(selected_cols, k=1) if flip(rand_order) else None
@@ -687,7 +696,7 @@ class Select(SQLNode):
         offset = random.randint(1,20) if flip() and limit else None
 
         return Select(
-            columns=selected_cols,
+            columns=selected_cols + selcase,
             from_clause=from_clause,
             where=where,
             group_by=group_by,
@@ -695,23 +704,12 @@ class Select(SQLNode):
             limit=limit,
             offset=offset,
         )
-    '''
-    @staticmethod
-    def random_with_join(left: Table, right: Table, rand_where: float = 0.5) -> "Select":
-        join_clause = Join.random(left, right)
 
-        combined_cols = left.columns + right.columns
-        selected_cols = random.sample(combined_cols, k=random.randint(1, len(combined_cols)))
-        where = Where.random(left) if flip(rand_where) else None
-
-        return Select(
-            columns=selected_cols,
-            from_clause=join_clause,
-            where=where
-        )
-    '''
 @dataclass
 class View(Table):
+    '''
+    CREATE VIEW name AS SELECT ... FROM ... WHERE ...
+    '''
     name: str
     select: Select
     columns: List[Column]
@@ -727,10 +725,16 @@ class View(Table):
         
 @dataclass
 class With(SQLNode):
+    '''
+    WITH name AS (
+        SELECT ... FROM ... WHERE ...
+    ) 
+    SELECT ... FROM ... WHERE ...
+    '''
     name: str
-    query: SQLNode
-    recursive: bool = False
-    main_query: Optional[SQLNode] = None
+    query: Select
+    recursive: bool = False #TODO: recursive
+    main_query: Optional[Select] = None
 
     def sql(self) -> str:
         rec = "RECURSIVE " if self.recursive else ""
@@ -756,6 +760,9 @@ class With(SQLNode):
 
 @dataclass
 class Index(SQLNode):
+    '''
+    CREATE (UNIQUE) INDEX name ON table (idx_columns) WHERE ...
+    '''
     name: str
     table: str
     columns: List[str]
@@ -785,6 +792,12 @@ class Index(SQLNode):
     
 @dataclass
 class Trigger(SQLNode):
+    '''
+    CREATE TRIGGER name BEFORE/AFTER INSERT/UPDATE/DELETE ON table
+    BEGIN
+        INSERT/UPDATE/DELETE ...
+    END;
+    '''
     name: str
     timing: str
     event: str 
@@ -812,13 +825,22 @@ class Trigger(SQLNode):
         when = Where.random(table) if flip(0.4) else None
 
         body = []
-        for _ in range(random.randint(1, 2)):
-            body.append(Insert.random(table)) 
+        for _ in range(random.randint(1, 3)):
+            if flip(0.33):
+                body.append(Insert.random(table)) 
+            elif flip():
+                body.append(Update.random(table))
+            else:
+                body.append(Delete.random(table))
 
         return Trigger(name, timing, event, table, when, body)
 
 @dataclass
 class Pragma(SQLNode):
+    '''
+    PRAGMA ...
+    basically SQLite configuration
+    '''
     name: str
     value: str
 
