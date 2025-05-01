@@ -3,7 +3,7 @@ import string
 from dataclasses import dataclass
 from typing import List, Optional, Union, Dict
 
-random.seed(42)
+#random.seed(42)
 
 SQL_TYPES = ["INTEGER", "TEXT", "REAL"]
 SQL_CONSTRAINTS = ["PRIMARY KEY", "UNIQUE", "NOT NULL", "CHECK", "DEFAULT"]
@@ -15,20 +15,20 @@ VALUES = { # put interesting values to test here
                 42, 1337,
                 0x7FFFFFFF, 0x80000000,
                 ],
-    "TEXT": ["", " ", "a", "abc", " "*1000, 
-             "' OR 1=1; --", "\x00\x01\x02", 
-             "DROP TABLE test;", #"A"*10000,
-             "\"quoted\"", "'quoted'", "NULL",
+    "TEXT": ["''", "' '", "'a'", "'abc'", "'" + " "*1000 + "'", 
+             #"' OR 1=1; --'", "'\x00\x01\x02'", 
+             #"DROP TABLE test;", #"A"*10000,
+             "'quoted'", "NULL",
              ],
     "REAL": [0.0, -0.0, 1.0, -1.0,
              3.14159, 2.71828,
-             float('inf'), float('-inf'), float('nan'),
+             #float('inf'), float('-inf'), float('nan'),
              1e-10, 1e10, 1e308, -1e308,
              ]
 }
 CALLABLE_VALUES = {
     "INTEGER": lambda: random.randint(-1000, 1000),
-    "TEXT": lambda: random_name(prefix = "v", length=5),
+    "TEXT": lambda: ("'" + random_name(prefix = "v", length=5) + "'"),
     "REAL": lambda: random.uniform(-1e5, 1e5)
 }
 OPS = {
@@ -71,7 +71,7 @@ def random_value(dtype:str) -> str:
         str: the generated value
     """
     if dtype in SQL_TYPES:
-        if flip(0.2):
+        if flip(0.9):
             return str(CALLABLE_VALUES[dtype]())
         else:
             return str(random.choice(VALUES[dtype]))
@@ -92,7 +92,8 @@ def flip(weight:float = 0.5) -> bool:
 
 class SQLNode:
     def sql(self) -> str:
-        raise NotImplementedError
+        return ""
+        #raise NotImplementedError
 
 @dataclass
 class Predicate(SQLNode):
@@ -100,10 +101,11 @@ class Predicate(SQLNode):
         raise NotImplementedError
     
     @staticmethod
-    def random(table: "Table") -> "Predicate":
+    def random(table: "Table", rand_tbl: float = 1) -> "Predicate":
         col = random.choice(table.columns)
-        predicate_classes = [NullCheck, Comparison, InList, Exists]
-        table_needed = [Exists,]
+        predicate_classes = [NullCheck, Comparison, InList]
+        if flip(rand_tbl):
+            predicate_classes += [Exists]
         
         if col.dtype == "INTEGER":
             predicate_classes.append(Between)
@@ -113,7 +115,7 @@ class Predicate(SQLNode):
             predicate_classes.append(Like)
         
         cls = random.choice(predicate_classes)
-        if cls in table_needed:
+        if cls == Exists:
             return cls.random(table)
         else:
             return cls.random(col)
@@ -179,6 +181,8 @@ class Like(Predicate):
         '''
         if not base:
             return random.choice(['%', '_', ''])
+        
+        base = base.replace("'", "")
 
         patterns = []
         patterns.append(f"{base}")
@@ -200,7 +204,7 @@ class Like(Predicate):
             pattern = base[:idx] + '_' + base[idx + 1:]
             patterns.append(pattern)
 
-        return random.choice(patterns)
+        return "'" + random.choice(patterns) + "'"
     
 @dataclass
 class InList(Predicate):
@@ -229,11 +233,11 @@ class Exists(Predicate):
     select: "Select"
 
     def sql(self) -> str:
-        return f"EXISTS ({self.select})"
+        return f"EXISTS ({self.select.sql()})"
 
     @staticmethod
     def random(table: "Table") -> "Exists":
-        select = Select.random(table, rand_where=1, sample=1)
+        select = Select.random(table, rand_where=1, sample=1, rand_group=0, rand_order=0)
         return Exists(select)
 
 @dataclass
@@ -264,17 +268,20 @@ class Where(SQLNode):
         raise NotImplementedError 
 
     @staticmethod
-    def random(table: "Table", max_depth: int = 3, p_depth: float = 0.3, 
-               other_tables: List["Table"] = None, p_sub: float = 0.3) -> "Where":
+    def random(table: "Table", max_depth: int = 1, p_depth: float = 0.3, 
+               other_tables: List["Table"] = None, rand_pred: float = 1, rand_sub: float = 0.05) -> "Where":
         other_tables = other_tables or []
 
         if max_depth <= 0 or flip(p_depth):
-            if other_tables and random.random() < 1:#and always true?
+            if other_tables and flip(rand_sub):
                 return InSubquery.random(table, other_tables)
-            return Predicate.random(table) #changed from comparison to predicate
+            elif flip(rand_pred):
+                return Predicate.random(table) #changed from comparison to predicate
+            else:
+                return Predicate.random(table, rand_tbl=0) # Index does not accept subqueries
         else:
-            left = Where.random(table, max_depth - 1, p_depth)
-            right = Where.random(table, max_depth - 1, p_depth)
+            left = Where.random(table, max_depth - 1, p_depth, rand_pred=rand_pred, rand_sub=rand_sub)
+            right = Where.random(table, max_depth - 1, p_depth, rand_pred=rand_pred, rand_sub=rand_sub)
             op = random.choice(["AND", "OR"])
             return BooleanExpr(left, right, op)
 
@@ -300,7 +307,7 @@ class InSubquery(Where):
         else:
             sub_col = random.choice(matching_columns)
             
-        where_clause = Where.random(other_table, max_depth=2)
+        where_clause = Where.random(other_table, max_depth=1) if flip(0.05) else None
         subquery = Select(
             columns=[sub_col],
             from_clause=other_table,
@@ -328,7 +335,7 @@ class Column:
     primary_key: bool = False
     nullable: bool = True
     unique: bool = False
-    check: Optional[Predicate] = None #changed from comparison to predicate
+    check: Optional[Comparison] = None #changed from comparison to predicate
     default: Optional[str] = None
 
     def sql(self) -> str:
@@ -349,16 +356,17 @@ class Column:
     def random(name: Optional[str] = None, allow_pk: bool = True) -> "Column":
         name = name or random_name("col")
         dtype = random_type()
+        name = dtype[0].lower() + name
         primary_key = allow_pk and flip(0.3)
         nullable = not primary_key and random.choice([True, False])
         unique = not primary_key and flip(0.1)
 
         check = None
         if flip(0.3):
-            temp_table = Table(name="fake", columns=[])
-            fake_col = Column(name=name, dtype=dtype)
-            temp_table.columns.append(fake_col)
-            check = Predicate.random(temp_table) ##changed from comparison to predicate
+            #temp_table = Table(name="fake", columns=[])
+            #fake_col = 
+            #temp_table.columns.append(fake_col)
+            check = Comparison.random(Column(name=name, dtype=dtype)) ##changed from comparison to predicate
 
         default = None
         if (dtype == "INTEGER" or dtype == "REAL") and flip(0.2):
@@ -378,7 +386,7 @@ class Table(SQLNode):
 
     def sql(self) -> str:
         column_defs = ", ".join([col.sql() for col in self.columns])
-        return f"CREATE TABLE {self.name} ({column_defs})"
+        return f"CREATE TABLE {self.name} ({column_defs});"
 
     def get_col_names(self) -> List[str]:
         return [col.name for col in self.columns]
@@ -386,18 +394,11 @@ class Table(SQLNode):
     @staticmethod
     def random(name: Optional[str] = None, min_cols: int = 2, max_cols: int = 6) -> "Table":
         name = name or random_name("tbl")
-        dtype_counts = {"INTEGER": 0, "TEXT": 0, "REAL": 0}
         num_cols = random.randint(min_cols, max_cols)
 
         columns = []
         for i in range(num_cols):
             col = Column.random(allow_pk=(i==0)) # primary key only for first column
-            col_type = col.dtype
-            new_name = col_type[0].lower() + str(dtype_counts[col_type])
-            col.name = new_name
-            if col.check:
-                col.check.column = new_name
-            dtype_counts[col_type] += 1
             columns.append(col)
 
         return Table(name, columns)
@@ -415,7 +416,7 @@ class AlterTable(Table):
         elif self.new_col:
             return f"ALTER TABLE {self.name} ADD COLUMN {self.new_col.name};"
         else:
-            return f"ALTER TABLE {self.old_name} RENAME TO {self.name}"
+            return f"ALTER TABLE {self.old_name} RENAME TO {self.name};"
         
     @staticmethod
     def random_add(table: "Table") -> "AlterTable":
@@ -444,30 +445,30 @@ class Insert(SQLNode):
     table: str
     columns: List[Column]
     values: List[List[str]]
-    conflict_action: Optional[str] = None
     default: bool
-    full:bool
+    full: bool
+    conflict_action: Optional[str] = None
 
     def sql(self) -> str:
         query = "INSERT "
         if self.conflict_action:
             query+= f"OR {self.conflict_action} "
             
-        if self.default:
-            return query+f"INTO {self.table} DEFAULT VALUES"
-        
         cols = ", ".join([c.name for c in self.columns])
         vals_list = []
         for row in self.values:
             vals = ", ".join(row)
             vals_list.append(f"({vals})")
         all_vals = ", ".join(vals_list)
-            
+        
+        #if self.default:
+        #    query += f"INTO {self.table} ({cols}) DEFAULT VALUES"
         if self.full:
-            query+= f"INTO {self.table} VALUES {all_vals}"
+            query += f"INTO {self.table} ({cols}) VALUES {all_vals}"
         else:
             query += f"INTO {self.table} ({cols}) VALUES {all_vals}"
-        return query
+        
+        return query + ";"
 
     @staticmethod
     def random(table: "Table") -> "Insert":
@@ -475,10 +476,10 @@ class Insert(SQLNode):
         conflict_action = random.choice(["ROLLBACK", "ABORT", "FAIL", "IGNORE", "REPLACE"]) if flip(0.2) else None
         full = flip(0.2)
         
-        if default:
-            return Insert(table=table.name, columns=[], values=[], conflict_action=conflict_action, default=True, full=False)
+        #if default:
+        #    return Insert(table=table.name, columns=[], values=[], conflict_action=conflict_action, default=True, full=False)
         
-        num_cols = random.randint(1,len(table.columns)) if not full else len(table.columns)
+        num_cols = random.randint(1, len(table.columns)) if not full else len(table.columns)
         cols = []
         num_rows = random.randint(1,5)
         vals = [[] for _ in range(num_rows)]
@@ -505,7 +506,7 @@ class Update(SQLNode):
         query += ", ".join(assignments)
         if self.where:
             query += f" WHERE {self.where.sql()}"
-        return query
+        return query + ";"
 
     @staticmethod
     def random(table: "Table") -> "Update":
@@ -528,7 +529,7 @@ class Delete(SQLNode):
         query = f"DELETE FROM {self.table}"
         if self.where:
             query += f" WHERE {self.where.sql()}"
-        return query
+        return query + ";"
 
     @staticmethod
     def random(table: "Table") -> "Delete":
@@ -560,10 +561,13 @@ class Replace(SQLNode):
             query+= f"INTO {self.table} VALUES {all_vals}"
         else:
             query += f"INTO {self.table} ({cols}) VALUES {all_vals}"
-        return query
+        return query + ";"
 
     @staticmethod
     def random(table: "Table") -> "Replace":
+        if isinstance(table, View):
+            return SQLNode() # cannot replace in View
+
         default = flip(0.2)
         full = flip(0.2)
         
@@ -690,7 +694,7 @@ class Select(SQLNode):
             limit=limit,
             offset=offset,
         )
-    
+    '''
     @staticmethod
     def random_with_join(left: Table, right: Table, rand_where: float = 0.5) -> "Select":
         join_clause = Join.random(left, right)
@@ -704,7 +708,7 @@ class Select(SQLNode):
             from_clause=join_clause,
             where=where
         )
-
+    '''
 @dataclass
 class View(Table):
     name: str
@@ -712,7 +716,7 @@ class View(Table):
     columns: List[Column]
 
     def sql(self) -> str:
-        return f"CREATE VIEW {self.name} AS ({self.select.sql()})"
+        return f"CREATE VIEW {self.name} AS {self.select.sql()};"
     
     @staticmethod
     def random(table: Table) -> "View":
@@ -731,8 +735,8 @@ class With(SQLNode):
         rec = "RECURSIVE " if self.recursive else ""
         full_query = f"WITH {rec}{self.name} AS ({self.query.sql()})"
         if self.main_query:
-            return f"{full_query} {self.main_query.sql()}"
-        return full_query
+            return f"{full_query} {self.main_query.sql()}" + ";"
+        return full_query + ";"
     
     @staticmethod
     def random(table: Table) -> "With":
@@ -764,16 +768,18 @@ class Index(SQLNode):
         query.append(f"INDEX {self.name} ON {self.table} ({', '.join(self.columns)})")
         if self.where:
             query.append(f"WHERE {self.where.sql()}")
-        return " ".join(query)
+        return " ".join(query) + ";"
 
     @staticmethod
     def random(table: "Table") -> "Index":
+        if isinstance(table, View):
+            return SQLNode() # cannot index on View
         name = random_name("idx")
         col_names = table.get_col_names()
         num_cols = random.randint(1, min(len(col_names), 3))
         cols = random.sample(col_names, num_cols)
         unique = flip(0.3)
-        where = Where.random(table) if flip(0.4) else None
+        where = Where.random(table, rand_pred=0, rand_sub=0) if flip(0.4) else None #
         return Index(name=name, table=table.name, columns=cols, unique=unique, where=where)
     
 @dataclass
@@ -884,12 +890,7 @@ class Case(SQLNode):
         return Case(conditions, values, col, else_)
     
 
-    
-       
-
-
-
-def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10) -> str:
+def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10, context: Table = None) -> str:
     """
     Randomly generates the entire query, keeping track of the tables to pass as arguments.
     
@@ -897,16 +898,28 @@ def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10)
         prob (Dict[str, float]): Dictionary with probabilities of generating each query type
         debug (bool, optional): helps debugging. Defaults to False.
         cycle (int, optional): number of iterations. Defaults to 10.
+        context (Table): table context to add to query. Defaults to None
 
     Returns:
         str: the string of the entire query generated
         
     """
-    tables = [Table.random()]
-    query = tables[0].sql() + "\n"
+    query = ""
+    if not context:
+        tables = [Table.random()]
+        query = tables[0].sql() + "\n"
+        for i in range(1):
+            insert = Insert.random(tables[0])
+            query += insert.sql() + "\n"
     for i in range(cycle):
         table = random.choice(tables)
-        if random.random() < prob["alt_ren"] or debug:
+        if flip(prob["insert"]) or debug:
+            insert = Insert.random(table)
+            query += insert.sql() + "\n"
+        if flip(prob["update"]) or debug:
+            update = Update.random(table)
+            query += update.sql() + "\n"
+        if flip(prob["alt_ren"]) or debug:
             new_table = AlterTable.random_tbl_rename(table)
             tables.remove(table) # renamed name of table, table does not exist anymore
             tables.append(new_table)
@@ -919,7 +932,7 @@ def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10)
             table = AlterTable.random_col_rename(table)
             query += table.sql() + "\n"
         if random.random() < prob["sel1"] or debug:
-            query += Select.random(table).sql() + "\n"
+            query += Select.random(table).sql() + ";\n"
         if random.random() < prob["with"] or debug:
             query += With.random(table).sql() + "\n"
         if random.random() < prob["view"] or debug:
@@ -931,10 +944,9 @@ def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10)
         if random.random() < prob["trg"] or debug:
             query += Trigger.random(table).sql() + "\n"
         if (random.random() < prob["sel2"] and len(tables) > 1) or debug:
-            #if table in tables:
-            #    tables.remove(table)
-            query += Select.random(table, other_tables=tables).sql() + "\n"
-            #tables.append(table)
+            query += Select.random(table, other_tables=tables).sql() + ";\n"
+        if flip(prob["replace"]) or debug:
+            query += Replace.random(table).sql() + "\n"
 
     return query
         
@@ -948,6 +960,8 @@ if __name__ == "__main__":
         "with": 0.2,
         "view": 0.2,
         "idx": 0.1,
-        "trg": 0.1 
+        "trg": 0.1,
+        "insert": 0.5,
+        "update": 0.3
     }
-    print(randomQueryGen(prob, debug=False, cycle=10))
+    print(randomQueryGen(prob, debug=True, cycle=1))

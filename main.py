@@ -2,9 +2,9 @@ import docker
 import logging
 from bugs import BUGS
 from tqdm import tqdm
-from query_generator import SQLiteTable, SQLiteQuery
+import generator as gen
 
-logging.disable(logging.INFO) 
+logging.disable(logging.ERROR) 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 SQLITE_VERSIONS = ["sqlite3-3.26.0", "sqlite3-3.39.4"]
@@ -25,7 +25,7 @@ def run_query(sql_query, sqlite_version):
         return "  " + result.decode().strip().replace("\n", "\n  ")
     except Exception as e:
         logging.error(f"{sqlite_version}: {e}")
-        return None
+        return str(e)
 
 def test(query):
     """
@@ -51,11 +51,59 @@ if __name__ == "__main__":
         "INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3);",
         "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;"
     ]
-    test(SQL_TEST_QUERY)
+    #test(SQL_TEST_QUERY)
 
     BUGS[0:34]
-    test(BUGS[0])
+    #test(BUGS[0])
 
+    prob = {   
+        "alt_ren": 0.1, 
+        "alt_add": 0.1,
+        "alt_col": 0.1,
+        "sel1": 0.5,
+        "sel2": 0.5,
+        "with": 0.2,
+        "view": 0.2,
+        "idx": 0.1,
+        "trg": 0.1,
+        "insert": 0.5,
+        "update": 0.3
+    }
+    query = gen.randomQueryGen(prob, debug=True, cycle=1)
+
+    error = "constraint"
+    runs = 0
+    pbar = tqdm(total = runs+1)
+    while "constraint" in error or not error.strip() or not "Error" in error:
+        test_query = ""
+        table = gen.Table.random()
+        test_query += table.sql() + " "
+        insert = gen.Insert.random(table)
+        test_query += insert.sql() + " "
+        update = gen.Update.random(table)
+        test_query += update.sql() + " "
+        delete = gen.Delete.random(table)
+        test_query += delete.sql() + " "
+        table = gen.AlterTable.random_tbl_rename(table)
+        test_query += table.sql() + " "
+        table = gen.AlterTable.random_add(table)
+        test_query += table.sql() + " "
+        table = gen.AlterTable.random_col_rename(table)
+        test_query += table.sql() + " "
+        test_query += gen.Select.random(table).sql() + "; "
+        test_query += gen.With.random(table).sql() + " "
+        table = gen.View.random(table)
+        test_query += table.sql() + " "
+        table2 = gen.Table.random()
+        test_query += table2.sql() + " "
+        test_query += gen.Select.random(table, other_tables=[table2]).sql() + "; "
+        test_query += gen.Trigger.random(table2).sql() + " "
+        test_query += gen.Index.random(table2).sql() + " "
+        test_query += gen.Replace.random(table2).sql() + " "
+        error = run_query([test_query], SQLITE_VERSIONS[0])
+        pbar.update(1)
+    print(error)
+    pbar.close()
     # table_name = "test1"
     # table = SQLiteTable(table_name)
     # table.create(rows=100, max_cols=1)
