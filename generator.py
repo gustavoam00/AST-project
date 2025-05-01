@@ -222,7 +222,7 @@ class InList(Predicate):
     def random(col: "Column") -> "InList":
         count = random.randint(2, 5)
         values = [random_value(col.dtype) for _ in range(count)]
-        return InList(col.name, values)
+        return InList( col.name, values)
     
 @dataclass
 class Exists(Predicate):
@@ -335,8 +335,9 @@ class Column:
     primary_key: bool = False
     nullable: bool = True
     unique: bool = False
-    check: Optional[Comparison] = None #changed from comparison to predicate
+    check: Optional[Predicate] = None #changed from comparison to predicate
     default: Optional[str] = None
+    from_table: str = ""
 
     def sql(self) -> str:
         col = [self.name, self.dtype]
@@ -363,10 +364,10 @@ class Column:
 
         check = None
         if flip(0.3):
-            #temp_table = Table(name="fake", columns=[])
-            #fake_col = 
-            #temp_table.columns.append(fake_col)
-            check = Comparison.random(Column(name=name, dtype=dtype)) ##changed from comparison to predicate
+            temp_table = Table(name="fake", columns=[])
+            fake_col = Column(name=name, dtype=dtype)
+            temp_table.columns.append(fake_col)
+            check = Predicate.random(temp_table, rand_tbl=0)
 
         default = None
         if (dtype == "INTEGER" or dtype == "REAL") and flip(0.2):
@@ -548,7 +549,7 @@ class Replace(SQLNode):
         query = "REPLACE "
         
         if self.default:
-            return query+f"INTO {self.table} DEFAULT VALUES"
+            return query+f"INTO {self.table} DEFAULT VALUES;"
         
         cols = ", ".join([c.name for c in self.columns])
         vals_list = []
@@ -817,6 +818,28 @@ class Trigger(SQLNode):
         return Trigger(name, timing, event, table, when, body)
 
 @dataclass
+class Pragma(SQLNode):
+    name: str
+    value: str
+
+    def sql(self) -> str:
+        return f"PRAGMA {self.name} = {self.value};"
+
+    @staticmethod
+    def random() -> "Pragma":
+        pragmas = [
+            ("foreign_keys", random.choice(["ON", "OFF"])),
+            ("cache_size", str(random.randint(1000, 5000))),
+            ("journal_mode", random.choice(["DELETE", "TRUNCATE", "PERSIST", "WAL", "MEMORY"])),
+            ("synchronous", random.choice(["0", "1", "2"])),  # OFF, NORMAL, FULL
+            ("temp_store", random.choice(["DEFAULT", "FILE", "MEMORY"])),
+            ("locking_mode", random.choice(["NORMAL", "EXCLUSIVE"])),
+        ]
+
+        name, value = random.choice(pragmas)
+        return Pragma(name=name, value=value)
+
+@dataclass
 class Expression(SQLNode):
     """
     Expression is anything that computes a value, including:
@@ -947,6 +970,8 @@ def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10,
             query += Select.random(table, other_tables=tables).sql() + ";\n"
         if flip(prob["replace"]) or debug:
             query += Replace.random(table).sql() + "\n"
+        if flip(prob["pragma"]) or debug:
+            query += Pragma.random().sql() + "\n"
 
     return query
         
@@ -962,6 +987,8 @@ if __name__ == "__main__":
         "idx": 0.1,
         "trg": 0.1,
         "insert": 0.5,
-        "update": 0.3
+        "update": 0.3,
+        "replace": 0.2,
+        "pragma": 0.1
     }
     print(randomQueryGen(prob, debug=True, cycle=1))

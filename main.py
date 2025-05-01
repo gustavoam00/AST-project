@@ -67,10 +67,22 @@ if __name__ == "__main__":
         "idx": 0.1,
         "trg": 0.1,
         "insert": 0.5,
-        "update": 0.3
+        "update": 0.3,
+        "replace": 0.2,
+        "pragma": 0.1
     }
-    query = gen.randomQueryGen(prob, debug=True, cycle=1)
 
+    error = "constraint"
+    runs = 0
+    pbar = tqdm(total = runs+1)
+    while "constraint" in error or not error.strip() or not "Error" in error or "no such column" in error:
+        query = gen.randomQueryGen(prob, debug=True, cycle=1)
+        error = run_query([query], SQLITE_VERSIONS[0])
+        pbar.update(1)
+    print(error)
+    pbar.close()
+
+    assert False
     error = "constraint"
     runs = 0
     pbar = tqdm(total = runs+1)
@@ -100,6 +112,7 @@ if __name__ == "__main__":
         test_query += gen.Trigger.random(table2).sql() + " "
         test_query += gen.Index.random(table2).sql() + " "
         test_query += gen.Replace.random(table2).sql() + " "
+        test_query += gen.Pragma.random().sql() + " "
         error = run_query([test_query], SQLITE_VERSIONS[0])
         pbar.update(1)
     print(error)
