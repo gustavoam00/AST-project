@@ -2,6 +2,7 @@ import random
 import string
 from dataclasses import dataclass
 from typing import List, Optional, Union, Dict
+from config import prob
 
 #random.seed(42)
 
@@ -637,7 +638,7 @@ class Join(SQLNode):
 
 @dataclass
 class Select(SQLNode):
-    columns: List[Union[Column, "Case"]]
+    columns: List[Column]
     from_clause: Union[Table, Join]
     where: Optional[Where] = None
     group_by: Optional[List[Column]] = None
@@ -645,10 +646,12 @@ class Select(SQLNode):
     #having: #this one is confucing, its like a group level condition generally after a group by
     limit: Optional[int] = None
     offset: Optional[int] = None
+    select_case: Optional["Case"] = None
 
     def sql(self) -> str:
-        col_names = [c.name if isinstance(c, Column) else c.sql() for c in self.columns]
-        base = f"SELECT {', '.join(col_names)} FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
+        all_select = [c.name for c in self.columns] 
+        all_select += [] if not self.select_case else [self.select_case.sql()] 
+        base = f"SELECT {', '.join(all_select)} FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         if self.where:
             base += f" WHERE {self.where.sql()}"
         if self.group_by:
@@ -673,6 +676,7 @@ class Select(SQLNode):
         rand_order: float = 0.3,
         rand_join: float = 0.3,
         rand_limit: float = 0.2,
+        rand_case: float = 0.2,
         other_tables: list[Table] = None,
     ) -> "Select":
         cols = table.columns
@@ -688,7 +692,7 @@ class Select(SQLNode):
         else:
             from_clause = table
 
-        selcase = [Case.random(table, random.choice(selected_cols))] if flip(0.2) else []
+        select_case = Case.random(table, random.choice(selected_cols)) if flip(rand_case) else None
         where = Where.random(table, other_tables=other_tables) if flip(rand_where) else None
         group_by = random.sample(selected_cols, k=1) if flip(rand_group) else None
         order_by = random.sample(selected_cols, k=1) if flip(rand_order) else None
@@ -696,13 +700,14 @@ class Select(SQLNode):
         offset = random.randint(1,20) if flip() and limit else None
 
         return Select(
-            columns=selected_cols + selcase,
+            columns=selected_cols, 
             from_clause=from_clause,
             where=where,
             group_by=group_by,
             order_by=order_by,
             limit=limit,
             offset=offset,
+            select_case=select_case,
         )
 
 @dataclass
@@ -893,6 +898,7 @@ class Case(SQLNode):
     values:List[str]
     col:str
     else_:str
+    dtype: str
     
     def sql(self) -> str:
         query = f"CASE "
@@ -932,7 +938,7 @@ class Case(SQLNode):
             values.append(random_value(case_dtype))
         
         else_ = "" if flip() else random_value(case_dtype)
-        return Case(conditions, values, col, else_)
+        return Case(conditions, values, col, else_, col_dtype)
     
 
 def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10, context: Table = None) -> str:
@@ -980,15 +986,15 @@ def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10,
             query += Select.random(table).sql() + ";\n"
         if random.random() < prob["with"] or debug:
             query += With.random(table).sql() + "\n"
-        if random.random() < prob["view"] or debug:
+        if flip(prob["view"]) or debug:
             new_table = View.random(table)
             tables.append(new_table)
             query += new_table.sql() + "\n"
-        if random.random() < prob["idx"] or debug:
+        if flip(prob["idx"]) or debug:
             query += Index.random(table).sql() + "\n"
-        if random.random() < prob["trg"] or debug:
+        if flip(prob["trg"]) or debug:
             query += Trigger.random(table).sql() + "\n"
-        if (random.random() < prob["sel2"] and len(tables) > 1) or debug:
+        if (flip(prob["sel2"]) and len(tables) > 1) or debug:
             query += Select.random(table, other_tables=tables).sql() + ";\n"
         if flip(prob["replace"]) or debug:
             query += Replace.random(table).sql() + "\n"
@@ -998,19 +1004,6 @@ def randomQueryGen(prob: Dict[str, float], debug: bool = False, cycle: int = 10,
     return query
         
 if __name__ == "__main__":
-    prob = {   
-        "alt_ren": 0.1, 
-        "alt_add": 0.1,
-        "alt_col": 0.1,
-        "sel1": 0.5,
-        "sel2": 0.5,
-        "with": 0.2,
-        "view": 0.2,
-        "idx": 0.1,
-        "trg": 0.1,
-        "insert": 0.5,
-        "update": 0.3,
-        "replace": 0.2,
-        "pragma": 0.1
-    }
-    print(randomQueryGen(prob, debug=True, cycle=1))
+    print(randomQueryGen(prob, debug=False, cycle=1))
+
+    
