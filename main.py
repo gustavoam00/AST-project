@@ -57,82 +57,98 @@ if __name__ == "__main__":
     #test(BUGS[0])
 
     prob = {   
-        "alt_ren": 0.1, 
-        "alt_add": 0.1,
-        "alt_col": 0.1,
-        "sel1": 0.5,
-        "sel2": 0.5,
-        "with": 0.2,
-        "view": 0.2,
-        "idx": 0.1,
-        "trg": 0.1,
-        "insert": 0.5,
-        "update": 0.3,
+        "table"  : 0.2,
+        "alt_ren": 0.2, 
+        "alt_add": 0.2,
+        "alt_col": 0.2,
+        "select1": 0.2,
+        "select2": 0.2,
+        "with":    0.2,
+        "view":    0.2,
+        "index":   0.2,
+        "trigger": 0.2,
+        "insert":  0.2,
+        "update":  0.2,
         "replace": 0.2,
-        "pragma": 0.1
+        "delete":  0.2,
+        "pragma":  0.2,
     }
 
-    error = "constraint"
-    runs = 0
-    pbar = tqdm(total = runs+1)
-    while "constraint" in error or not error.strip() or not "Error" in error or "no such column" in error:
-        query = gen.randomQueryGen(prob, debug=True, cycle=1)
+    errors = 0
+    for _ in tqdm(range(100)):
+        query = gen.randomQueryGen(prob, debug=False, cycle=2)
         error = run_query([query], SQLITE_VERSIONS[0])
-        pbar.update(1)
-    print(error)
-    pbar.close()
-
-    assert False
-    error = "constraint"
-    runs = 0
-    pbar = tqdm(total = runs+1)
-    while "constraint" in error or not error.strip() or not "Error" in error:
-        test_query = ""
-        table = gen.Table.random()
-        test_query += table.sql() + " "
-        insert = gen.Insert.random(table)
-        test_query += insert.sql() + " "
-        update = gen.Update.random(table)
-        test_query += update.sql() + " "
-        delete = gen.Delete.random(table)
-        test_query += delete.sql() + " "
-        table = gen.AlterTable.random_tbl_rename(table)
-        test_query += table.sql() + " "
-        table = gen.AlterTable.random_add(table)
-        test_query += table.sql() + " "
-        table = gen.AlterTable.random_col_rename(table)
-        test_query += table.sql() + " "
-        test_query += gen.Select.random(table).sql() + "; "
-        test_query += gen.With.random(table).sql() + " "
-        table = gen.View.random(table)
-        test_query += table.sql() + " "
-        table2 = gen.Table.random()
-        test_query += table2.sql() + " "
-        test_query += gen.Select.random(table, other_tables=[table2]).sql() + "; "
-        test_query += gen.Trigger.random(table2).sql() + " "
-        test_query += gen.Index.random(table2).sql() + " "
-        test_query += gen.Replace.random(table2).sql() + " "
-        test_query += gen.Pragma.random().sql() + " "
-        error = run_query([test_query], SQLITE_VERSIONS[0])
-        pbar.update(1)
-    print(error)
-    pbar.close()
-    # table_name = "test1"
-    # table = SQLiteTable(table_name)
-    # table.create(rows=100, max_cols=1)
-    # script = table.get_script()
-    # script_len = len(script)
-
-    # tables_cols = {}
-    # tables_cols[table_name] = table.get_cols()
-    # query_gen = SQLiteQuery([table_name], tables_cols)
+        # pbar.update(1)
+        if "Error" in error:
+            print(error)
+            break
+            errors+=1
     
-    # for i in tqdm(range(100000)):
-    #     query = query_gen.select(table_name, size=2)
-    #     script.append(query)
-    #     if i % 500 == 0:
-    #         test(script) #no bugs found
-    #         script = script[:script_len]
+    
+    # pbar.close()
+    # pbar = tqdm(total = runs+1)
+    # error = "constraint"
+    # runs = 0    
+    # while "constraint" in error or not error.strip() or not "Error" in error or "no such column" in error:
+    #     query = gen.randomQueryGen(prob, debug=False, cycle=1)
+    #     error = run_query([query], SQLITE_VERSIONS[0])
+    #     pbar.update(1)
+    # print(error)
+    # pbar.close()
+
+    # assert False
+    # error = "constraint"
+    # runs = 0
+    # pbar = tqdm(total = runs+1)
+    # while "constraint" in error or not error.strip() or not "Error" in error:
+    #     test_query = ""
+    #     table = gen.Table.random()
+    #     test_query += table.sql() + " "
+    #     insert = gen.Insert.random(table)
+    #     test_query += insert.sql() + " "
+    #     update = gen.Update.random(table)
+    #     test_query += update.sql() + " "
+    #     delete = gen.Delete.random(table)
+    #     test_query += delete.sql() + " "
+    #     table = gen.AlterTable.random_tbl_rename(table)
+    #     test_query += table.sql() + " "
+    #     table = gen.AlterTable.random_add(table)
+    #     test_query += table.sql() + " "
+    #     table = gen.AlterTable.random_col_rename(table)
+    #     test_query += table.sql() + " "
+    #     test_query += gen.Select.random(table).sql() + "; "
+    #     test_query += gen.With.random(table).sql() + " "
+    #     table = gen.View.random(table)
+    #     test_query += table.sql() + " "
+    #     table2 = gen.Table.random()
+    #     test_query += table2.sql() + " "
+    #     test_query += gen.Select.random(table, other_tables=[table2]).sql() + "; "
+    #     test_query += gen.Trigger.random(table2).sql() + " "
+    #     test_query += gen.Index.random(table2).sql() + " "
+    #     test_query += gen.Replace.random(table2).sql() + " "
+    #     test_query += gen.Pragma.random().sql() + " "
+    #     error = run_query([test_query], SQLITE_VERSIONS[0])
+    #     pbar.update(1)
+    # print(error)
+    # pbar.close()
+    
+    
+    # # table_name = "test1"
+    # # table = SQLiteTable(table_name)
+    # # table.create(rows=100, max_cols=1)
+    # # script = table.get_script()
+    # # script_len = len(script)
+
+    # # tables_cols = {}
+    # # tables_cols[table_name] = table.get_cols()
+    # # query_gen = SQLiteQuery([table_name], tables_cols)
+    
+    # # for i in tqdm(range(100000)):
+    # #     query = query_gen.select(table_name, size=2)
+    # #     script.append(query)
+    # #     if i % 500 == 0:
+    # #         test(script) #no bugs found
+    # #         script = script[:script_len]
         
 
 
