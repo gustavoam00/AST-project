@@ -8,8 +8,8 @@ random.seed(SEED)
 
 FUZZING_PIPELINE = lambda x: [
     Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False),
-    Fuzzing("AlterTable", gen.AlterTable, gen_table=True, rem_table=True, need_prob=False), 
-    #Fuzzing("View", gen.View, gen_table=True, prob=x),
+    Fuzzing("View", gen.View, gen_table=True, prob=x),
+    Fuzzing("AlterTable", gen.AlterTable, gen_table=True, mod_table=True, rem_table=True, need_prob=False), 
     Fuzzing("Insert", gen.Insert, mod_table=True, prob=x),
     Fuzzing("Update", gen.Update, mod_table=True, prob=x, max=5),
     Fuzzing("Select", gen.Select, other_tables=True, threshold=10, prob=x),
@@ -17,8 +17,6 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("Trigger", gen.Trigger, prob=x),
     Fuzzing("Index", gen.Index, prob=x),
     Fuzzing("Pragma", gen.Pragma, needs_table=False, need_prob=False),
-    #Fuzzing("AlterTable", gen.AlterTable, gen_table=True, rem_table=True, need_prob=False), 
-    Fuzzing("View", gen.View, gen_table=True, prob=x),
     Fuzzing("Select", gen.Select, other_tables=True, threshold=10, prob=x),
     Fuzzing("With", gen.With, threshold=10, prob=x),
     Fuzzing("Delete", gen.Delete, mod_table=True, prob=x), 
