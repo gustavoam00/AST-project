@@ -763,13 +763,12 @@ class Select(SQLNode):
             base += "*"
         elif self.one:
             base += "1"
+            if self.omit:
+                return base
         else:
             base += f"{', '.join(all_select)}"
         
         base += f" FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
-       
-        if self.omit:
-            return base
         
         if self.where:
             base += f" WHERE {self.where.sql()}"
@@ -1105,14 +1104,14 @@ class Case(SQLNode):
         return Case(conditions, values, col, else_, col_dtype)
     
 
-def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cycle: int = 10, context: Table = None) -> str:
+def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cycle: int = 3, context: Table = None) -> str:
     """
     Randomly generates the entire query, keeping track of the tables to pass as arguments.
     
     Args:
         prob (Dict[str, float]): Dictionary with probabilities of generating each query type
         debug (bool, optional): helps debugging. Defaults to False.
-        cycle (int, optional): number of iterations. Defaults to 10.
+        cycle (int, optional): number of iterations. Defaults to 3.
         context (Table): table context to add to query. Defaults to None
 
     Returns:
