@@ -1,6 +1,6 @@
 import random
 import string
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Union, Dict
 from config import SEED
 import copy
@@ -305,14 +305,14 @@ class Where(SQLNode):
 
         if max_depth <= 0 or flip(prob["depth_p"]):
             if other_tables and flip(prob["sub_p"]):
-                return InSubquery.random(table, other_tables, param_prob=param_prob) #{"where_p":prob["where_p"]})
+                return InSubquery.random(table, other_tables, param_prob=prob) #{"where_p":prob["where_p"]})
             elif flip(prob["pred_p"]):
                 return Predicate.random(table)
             else:
                 return Predicate.random(table, sub_allow=False) # Index does not accept subqueries
         else:
-            left = Where.random(table, max_depth - 1, param_prob=param_prob)
-            right = Where.random(table, max_depth - 1, param_prob=param_prob)
+            left = Where.random(table, max_depth - 1, param_prob=prob)
+            right = Where.random(table, max_depth - 1, param_prob=prob)
             op = random.choice(["AND", "OR"])
             return BooleanExpr(left, right, op)
 
@@ -343,7 +343,7 @@ class InSubquery(Where):
         else:
             sub_col = random.choice(matching_columns)
             
-        where_clause = Where.random(other_table, max_depth=1, param_prob=param_prob) if flip(prob["where_p"]) else None
+        where_clause = Where.random(other_table, max_depth=1, param_prob=prob) if flip(prob["where_p"]) else None
         subquery = Select(
             columns=[sub_col],
             from_clause=other_table,
@@ -434,6 +434,7 @@ class Table(SQLNode):
     '''
     name: str
     columns: List[Column]
+    viewed = False
 
     def sql(self) -> str:
         column_defs = ", ".join([col.sql() for col in self.columns])
@@ -479,26 +480,36 @@ class AlterTable(Table):
         
     @staticmethod
     def random(table: "Table") -> "AlterTable":
+        if table.viewed: #modifying tbales breaks views
+            return None
+        
         fn = random.choice([AlterTable.random_add, AlterTable.random_col_rename, AlterTable.random_tbl_rename])
         return fn(table)
         
     @staticmethod
     def random_add(table: "Table") -> "AlterTable":
         new_col = Column.random(param_prob={"unq_p":0.0})
-        modified_col = copy.deepcopy(table.columns)
-        modified_col.append(new_col)
-        return AlterTable(name=table.name, new_col=new_col, columns=modified_col)
+        modified_cols = copy.deepcopy(table.columns)
+        modified_cols.append(new_col)
+        table.columns = modified_cols #we need to update the table with the new column
+        return AlterTable(name=table.name, new_col=new_col, columns=modified_cols)
     
     @staticmethod
     def random_col_rename(table: "Table") -> "AlterTable":
+        if table.viewed:
+            return None
         mod_cols = copy.deepcopy(table.columns)
-        mod_col = random.choice(mod_cols)
+        idx = random.randrange(len(mod_cols))
+        mod_col = mod_cols[idx]
         old_col_name = mod_col.name
         mod_col.name = random_name("col")
+        table.columns[idx] = mod_col #update table with new name
         return AlterTable(name=table.name, new_col=mod_col, old_col_name=old_col_name, columns=mod_cols)
     
     @staticmethod
     def random_tbl_rename(table: "Table") -> "AlterTable":
+        if table.viewed:
+            return None
         return AlterTable(name=random_name("atbl"), old_name=table.name, columns=table.columns)
 
 @dataclass
@@ -612,7 +623,7 @@ class Update(SQLNode):
             null_chance = 0 if col.notnull else 0.05
             vals.append(random_value(col.dtype, null_chance=null_chance))
 
-        where = Where.random(table, param_prob=param_prob) if flip(prob["where_p"]) else None
+        where = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
         return Update(table=table.name, columns=cols, values=vals, where=where)
     
 @dataclass   
@@ -632,7 +643,7 @@ class Delete(SQLNode):
         if param_prob is not None:
             prob.update(param_prob)
             
-        where = Where.random(table, param_prob=param_prob) if flip(prob["where_p"]) else None
+        where = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
         return Delete(table=table.name, where=where)
     
 @dataclass
@@ -798,22 +809,29 @@ class Select(SQLNode):
         return base
 
     @staticmethod
-    def random(table: Table, sample: int = None, other_tables: list[Table] = None, param_prob:Dict[str, float] = None) -> "Select":
-        prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.2, "offst_p":0.5, "*_p":0.2, "omit_p":0.2, "one_p":0.1}
+    def random(table: Table, sample: int = None, other_tables: list[Table] = None, param_cols: List[Column] = None, param_prob:Dict[str, float] = None) -> "Select":
+        prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.2, "offst_p":0.5, "*_p":0.2, "omit_p":0.2, "one_p":0.05}
         if param_prob is not None:
             prob.update(param_prob)
         
         asterisk = flip(prob["*_p"]) and not sample
-        one = flip(prob["one_p"]) and not sample and not asterisk
+        one = flip(prob["one_p"]) and not (sample or asterisk or param_cols)
         omit = one and flip(prob["omit_p"])
-        cols = table.columns
-        if not sample:
+        
+        if param_cols:
+            cols = param_cols
+        else:
+            cols = table.columns
+            
+        if asterisk:
+            selected_cols = cols
+        elif not sample:
             selected_cols = random.sample(cols, random.randint(1, len(cols)))
         else:
             selected_cols = random.sample(cols, sample)
 
-        select_case = Case.random(table, random.choice(selected_cols), param_prob=param_prob) if flip(prob["case_p"]) else None
-        where = Where.random(table, param_prob=param_prob, other_tables=other_tables) if flip(prob["where_p"]) else None
+        select_case = Case.random(table, random.choice(selected_cols), param_prob=prob) if flip(prob["case_p"]) else None
+        where = Where.random(table, param_prob=prob, other_tables=other_tables) if flip(prob["where_p"]) else None
         group_by = random.sample(selected_cols, k=1) if flip(prob["grp_p"]) else None
         order_by = random.sample(selected_cols, k=1) if flip(prob["ord_p"]) else None
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
@@ -855,32 +873,45 @@ class With(SQLNode):
         SELECT ... FROM ... WHERE ...
     ) 
     SELECT ... FROM ... WHERE ...
-    TODO: recursive not properly used, muliplte temp views, used in select, delete, update, insert, replace
     '''
-    name: str
-    query: Select
+    names: List[str]
+    querys: List[Select]
     main_query: SQLNode
     recursive: bool = False #TODO: recursive
 
     def sql(self) -> str:
-        rec = "RECURSIVE " if self.recursive else ""
-        full_query = f"WITH {rec}{self.name} AS ({self.query.sql()})"
+        full_query = f"WITH {'RECURSIVE' if self.recursive else ''} "
+        
+        temp = []
+        for i in range(len(self.names)):
+            temp.append(f"{self.names[i]} AS ({self.querys[i].sql()})")
+        full_query += ", ".join(temp)
         if self.main_query:
             return f"{full_query} {self.main_query.sql()}"
         return full_query
     
     @staticmethod
     def random(table: Table, param_prob: Dict[str,float] = None) -> "With":
-        prob = {"urec_p":0.5}
+        prob = {"rec_p":0.5, "one_p":0, "*_p":1, "select_p":0.95, }
         if param_prob is not None:
             prob.update(param_prob)
         
-        with_name = random_name("with")
-        with_table = Table(with_name, table.columns)
-        inner_select = Select.random(table, param_prob={"one_p":0, "*_p":1})
-        main_select = Select(columns=inner_select.columns, from_clause=with_table)
-        recursive = flip(prob["urec_p"])
-        return With(name=with_name, query=inner_select, main_query=main_select, recursive=recursive)
+        recursive = flip(prob["rec_p"])
+        num = random.randint(1,3)
+        with_names = [random_name("with") for _ in range(num)]
+        with_tables = [Table(with_name, table.columns) for with_name in with_names]
+        inner_selects = [Select.random(random.choice([table] + with_tables[:i]), param_prob=prob) for i in range(num)]
+        
+        idx = random.randint(0, num-1)
+        cols = inner_selects[idx].columns
+        w_table = with_tables[idx]
+        if flip(prob["select_p"]) or isinstance(table, View):
+            main_query = Select.random(w_table, param_cols=cols, param_prob=prob)
+        else:
+            fn = random.choice([Delete.random, Insert.random, Replace.random, Update.random])
+            main_query = fn(table, param_prob=prob)#using the w_table inside these is pretty complicated, so the with here is useless but correct syntax
+        
+        return With(names=with_names, querys=inner_selects, main_query=main_query, recursive=recursive)
 
 @dataclass
 class View(Table):
@@ -890,15 +921,22 @@ class View(Table):
     name: str
     select: Select
     columns: List[Column]
+    temp: bool
 
     def sql(self) -> str:
-        return f"CREATE VIEW {self.name} AS {self.select.sql()}"
+        return f"CREATE {'TEMP' if self.temp else ''} VIEW {self.name} AS {self.select.sql()}"
     
     @staticmethod
     def random(table: Table, other_tables: List[Table] = None, param_prob: Dict[str,float] = None) -> "View":
+        prob = {"tmp_p":0.1, "one_p":0}
+        if param_prob is not None:
+            prob.update(param_prob)
+            
+        temp = flip(prob["tmp_p"])
         view_name = random_name("view")
-        select = Select.random(table, other_tables=other_tables, param_prob=param_prob)
-        return View(name=view_name, columns=select.columns, select=select)
+        select = Select.random(table, other_tables=other_tables, param_prob=prob)
+        
+        return View(name=view_name, columns=select.columns, select=select, temp=temp)
     
 @dataclass
 class Index(SQLNode):
@@ -925,7 +963,7 @@ class Index(SQLNode):
         if isinstance(table, View):
             return None # cannot index on View
         
-        prob = {"uniq_p":0.01, "where_p": 0.4}
+        prob = {"uniq_p":0.01, "where_p": 0.4, "pred_p":0.0, "sub_p":0.0}
         if param_prob is not None:
             prob.update(param_prob)
             
@@ -934,8 +972,7 @@ class Index(SQLNode):
         num_cols = random.randint(1, min(len(col_names), 3))
         cols = random.sample(col_names, num_cols)
         unique = flip(prob["uniq_p"])
-        # where = Where.random(table, param_prob={"pred_p":0.0, "sub_p":0.0}) if flip(prob["where_p"]) else None
-        where = Where.random(table, param_prob=param_prob) if flip(prob["where_p"]) else None
+        where = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
         return Index(name=name, table=table.name, columns=cols, unique=unique, where=where)
     
 @dataclass
@@ -978,7 +1015,7 @@ class Trigger(SQLNode):
 
     @staticmethod
     def random(table: "Table", param_prob:Dict[str, float] = None) -> "Trigger":
-        prob = {"temp_p":0.2, "nex_p":0.2, "upcol_p":0.2, "where_p": 0.0, "feac_p":0.2}
+        prob = {"temp_p":0.2, "nex_p":0.2, "upcol_p":0.2, "where_p": 0.0, "feac_p":0.2, "dft_p":0, "conf_p":0.9}
         if param_prob is not None:
             prob.update(param_prob)
             
@@ -992,20 +1029,20 @@ class Trigger(SQLNode):
             num_cols = random.randint(1, len(table.columns))
             sample_cols = random.sample(table.columns, num_cols)
             cols = [col.name for col in sample_cols]
-        when = Where.random(table, param_prob=param_prob) if flip(prob["where_p"]) else None
+        when = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
         foreach = flip(prob["feac_p"])
 
         statements = []
         for _ in range(random.randint(1, 3)):
             if flip(0.25):
-                statements.append(Select.random(table, param_prob=param_prob).sql()+";")
+                statements.append(Select.random(table, param_prob=prob).sql()+";")
                 continue
-            insert = Insert.random(table, non_unique=True, param_prob=param_prob) #param_prob={"dft_p":0, "conf_p":0.9})
+            insert = Insert.random(table, non_unique=True, param_prob=prob) #param_prob={"dft_p":0, "conf_p":0.9})
             if not insert or flip(0.33):
-                statements.append(Delete.random(table, param_prob=param_prob).sql()+";")
+                statements.append(Delete.random(table, param_prob=prob).sql()+";")
                 continue
             else:
-                update = Update.random(table, param_prob=param_prob)
+                update = Update.random(table, param_prob=prob)
                 if not update or flip(0.5):
                     statements.append(insert.sql()+";") 
                 else:
@@ -1092,11 +1129,12 @@ class Case(SQLNode):
         prob = {"case_col" : 0.5}
         if param_prob is not None:
             prob.update(param_prob)
+            
         if column:
-            col = column.name
+            col = f"{table.name}.{column.name}"
         else:
             column = random.choice(table.columns)
-            col = "" if flip(prob["case_col"]) else f"{column.name}"
+            col = "" if flip(prob["case_col"]) else f"{table.name}.{column.name}"
         col_dtype = column.dtype
         
         if not case_dtype:
@@ -1109,7 +1147,7 @@ class Case(SQLNode):
             if col:
                 conditions.append(random_value(col_dtype))
             else:
-                conditions.append(Comparison.random(table, param_prob=param_prob))
+                conditions.append(Comparison.random(table, param_prob=prob))
                 
             values.append(random_value(case_dtype))
         
@@ -1158,7 +1196,7 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
         for i in range(1):
             insert = Insert.random(tables[0])
             query += insert.sql() + ";\n"
-    views = [] #views can only be used in selects and joins?
+    views = []
     for i in range(cycle):
         try:
             if flip(prob["table"]) or debug:
@@ -1185,23 +1223,26 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                 delete = Delete.random(table)
                 query += delete.sql() + ";\n"
                 
-            if flip(prob["alt_ren"]) or debug:
+            if flip(prob["alt_ren"]) or debug and not table.viewed:
                 new_table = AlterTable.random_tbl_rename(table)
-                tables.remove(table) # renamed name of table, table does not exist anymore
-                tables.append(new_table)
+                if new_table:
+                    tables.remove(table) # renamed name of table, table does not exist anymore
+                    tables.append(new_table)
+                    query += new_table.sql() + ";\n"
+                    table = random.choice(tables)
+            if flip(prob["alt_add"]) or debug and not table.viewed:
+                new_table = AlterTable.random_add(table)
                 query += new_table.sql() + ";\n"
-                table = random.choice(tables)
-            if flip(prob["alt_add"]) or debug:
-                table = AlterTable.random_add(table)
-                query += table.sql() + ";\n"
-            if flip(prob["alt_col"]) or debug:
-                table = AlterTable.random_col_rename(table)
-                query += table.sql() + ";\n"
-                
+            if flip(prob["alt_col"]) or debug and not table.viewed:
+                new_table = AlterTable.random_col_rename(table)
+                if new_table:
+                    query += new_table.sql() + ";\n"
+            
             if flip(prob["view"]) or debug:
-                new_table = View.random(table)
-                views.append(new_table)
-                query += new_table.sql() + ";\n"
+                table.viewed = True #flags table so that we dont modify it
+                view = View.random(table)
+                views.append(view)
+                query += view.sql() + ";\n"
             if flip(prob["index"]) or debug:
                 index = Index.random(table)
                 if index:
@@ -1210,10 +1251,11 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                 trigger = Trigger.random(table)
                 query += trigger.sql() + ";\n"
             
+            table = random.choice(tables + views)
             if flip(prob["with"]) or debug:
                 with_ = With.random(table)
                 query += with_.sql() + ";\n"
-                
+            
             if flip(prob["select1"]) or debug:
                 query += Select.random(table).sql() + ";\n"
             if (flip(prob["select2"]) and len(tables) > 1) or debug:
@@ -1226,9 +1268,8 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
             print(e)
             i-=1
 
-    return query
+    return query, tables, views
         
 # if __name__ == "__main__":
 #     print(randomQueryGen(prob, debug=False, cycle=1))
 
-    

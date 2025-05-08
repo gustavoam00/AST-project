@@ -52,9 +52,11 @@ if __name__ == "__main__":
         "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;"
     ]
     #test(SQL_TEST_QUERY)
-
-    BUGS[0:34]
-    #test(BUGS[0])
+    # QUERY = "CREATE TABLE t0 (c0 INT); INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3); CREATE VIEW v0 AS SELECT * FROM t0; ALTER TABLE t0 RENAME c0 TO c9;" #this is fine tho
+    # print(run_query([QUERY], SQLITE_VERSIONS[0]))
+    
+    # BUGS[0:34]
+    # #test(BUGS[0])
 
     prob = {   
         "table"  : 0.2,
@@ -74,15 +76,15 @@ if __name__ == "__main__":
         "pragma":  0.2,
     }
 
-    errors = 0
+
     for _ in tqdm(range(100)):
-        query = gen.randomQueryGen(prob, debug=False, cycle=2)
+        query, tables, views = gen.randomQueryGen(prob, debug=False, cycle=2)
         error = run_query([query], SQLITE_VERSIONS[0])
         # pbar.update(1)
         if "Error" in error:
             print(error)
+            # breakpoint()
             break
-            errors+=1
     
     
     # pbar.close()
