@@ -1,6 +1,6 @@
 from tqdm import tqdm
 from test import coverage_test
-import tmp.generator as gen
+import generator as gen
 import random
 from config import TEST_FOLDER, SEED, PROB_TABLE
 
