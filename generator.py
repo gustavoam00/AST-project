@@ -2,9 +2,9 @@ import random
 import string
 from dataclasses import dataclass
 from typing import List, Optional, Union, Dict
-from config import prob
+from config import SEED
 
-#random.seed(42)
+random.seed(SEED)
 
 SQL_TYPES = ["INTEGER", "TEXT", "REAL"]
 SQL_CONSTRAINTS = ["PRIMARY KEY", "UNIQUE", "NOT NULL", "CHECK", "DEFAULT"]
@@ -313,7 +313,7 @@ class InSubquery(Where):
         else:
             sub_col = random.choice(matching_columns)
             
-        where_clause = Where.random(other_table, max_depth=1) if flip(prob["where_p"]) else None
+        where_clause = Where.random(other_table, max_depth=1, param_prob=param_prob) if flip(prob["where_p"]) else None
         subquery = Select(
             columns=[sub_col],
             from_clause=other_table,
@@ -447,6 +447,11 @@ class AlterTable(Table):
             return f"ALTER TABLE {self.old_name} RENAME TO {self.name}"
         
     @staticmethod
+    def random(table: "Table") -> "AlterTable":
+        fn = random.choice([AlterTable.random_add, AlterTable.random_col_rename, AlterTable.random_tbl_rename])
+        return fn(table)
+        
+    @staticmethod
     def random_add(table: "Table") -> "AlterTable":
         new_col = Column.random(param_prob={"unq_p":0.0})
         modified_col = table.columns
@@ -562,6 +567,7 @@ class Update(SQLNode):
         candidate_cols = [col for col in table.columns if not (col.unique or col.primary_key)]
         if not candidate_cols: #no non-unique columns, update likely to crash
             return None
+            #candidate_cols = col
             # where = Where.random(table)
             # vals = [random_value(table.columns[0].dtype,null_chance = 0, callable_chance=1),]
             # cols = [table.columns[0],]
@@ -575,7 +581,7 @@ class Update(SQLNode):
             null_chance = 0 if col.notnull else 0.05
             vals.append(random_value(col.dtype, null_chance=null_chance))
 
-        where = Where.random(table) if flip(prob["where_p"]) else None
+        where = Where.random(table, param_prob=param_prob) if flip(prob["where_p"]) else None
         return Update(table=table.name, columns=cols, values=vals, where=where)
     
 @dataclass   
@@ -595,7 +601,7 @@ class Delete(SQLNode):
         if param_prob is not None:
             prob.update(param_prob)
             
-        where = Where.random(table) if flip(prob["where_p"]) else None
+        where = Where.random(table, param_prob=param_prob) if flip(prob["where_p"]) else None
         return Delete(table=table.name, where=where)
     
 @dataclass
@@ -739,11 +745,12 @@ class Select(SQLNode):
             base += "1"
         else:
             base += f"{', '.join(all_select)}"
-            
+        
+        base += f" FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
+       
         if self.omit:
             return base
         
-        base += f" FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         if self.where:
             base += f" WHERE {self.where.sql()}"
         if self.group_by:
@@ -775,7 +782,7 @@ class Select(SQLNode):
             selected_cols = random.sample(cols, sample)
 
         select_case = Case.random(table, random.choice(selected_cols)) if flip(prob["case_p"]) else None
-        where = Where.random(table, other_tables=other_tables) if flip(prob["where_p"]) else None
+        where = Where.random(table, param_prob=param_prob, other_tables=other_tables) if flip(prob["where_p"]) else None
         group_by = random.sample(selected_cols, k=1) if flip(prob["grp_p"]) else None
         order_by = random.sample(selected_cols, k=1) if flip(prob["ord_p"]) else None
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
@@ -952,7 +959,7 @@ class Trigger(SQLNode):
             num_cols = random.randint(1, len(table.columns))
             sample_cols = random.sample(table.columns, num_cols)
             cols = [col.name for col in sample_cols]
-        when = Where.random(table) if flip(prob["where_p"]) else None
+        when = Where.random(table, param_prob=param_prob) if flip(prob["where_p"]) else None
         foreach = flip(prob["feac_p"])
 
         statements = []
