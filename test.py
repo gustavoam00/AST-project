@@ -3,7 +3,6 @@ import logging
 from bugs import BUGS
 from tqdm import tqdm
 import generator as gen
-from config import prob
 from metric import get_coverage, metric
 
 logging.disable(logging.ERROR) 
@@ -38,7 +37,7 @@ def run_query(sql_query, sqlite_version):
     """
     Executes an SQL query using the specified SQLite version inside a Docker container.
     """
-    sql_script = " ".join(sql_query)
+    sql_script = " ; ".join(sql_query)
     client = docker.from_env()
     try:
         result = client.containers.run(
