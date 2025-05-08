@@ -109,7 +109,7 @@ class Predicate(SQLNode):
         if sub_allow:
             predicate_classes += [Exists]
         
-        if col.dtype == "INTEGER"or col.dtype == "REAL":
+        if col.dtype == "INTEGER" or col.dtype == "REAL":
             predicate_classes.append(Between)
         if col.dtype == "TEXT":
             predicate_classes.append(Like)
@@ -118,7 +118,7 @@ class Predicate(SQLNode):
         if cls == Exists:
             return cls.random(table)
         else:
-            return cls.random(col)
+            return cls.random(col, table_name=table.name)
     
 @dataclass
 class Comparison(Predicate):
@@ -128,19 +128,21 @@ class Comparison(Predicate):
     column: str
     operator: str
     value: str
+    table_name: str
     
     def sql(self) -> str:
-        return f"{self.column} {self.operator} {self.value}"
+        ret = f"{self.table_name}." if self.table_name else ""
+        return ret + f"{self.column} {self.operator} {self.value}"
 
     @staticmethod
-    def random(col: "Column", param_prob: Dict[str, float] = None) -> "Comparison":
+    def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "Comparison":
         prob = {"comp_nullc": 0.05, "comp_callc": 0.9}
         if param_prob is not None:
             prob.update(param_prob)
         dtype = col.dtype
         op = random.choice(OPS[dtype])
         val = random_value(dtype, prob["comp_nullc"], prob["comp_callc"])
-        return Comparison(col.name, op, val)
+        return Comparison(col.name, op, val, table_name)
 
 @dataclass
 class Between(Predicate):
@@ -150,19 +152,21 @@ class Between(Predicate):
     column: str
     lower: str
     upper: str
+    table_name: str
 
     def sql(self) -> str:
-        return f"{self.column} BETWEEN {self.lower} AND {self.upper}"
+        ret = f"{self.table_name}." if self.table_name else ""
+        return ret + f"{self.column} BETWEEN {self.lower} AND {self.upper}"
 
     @staticmethod
-    def random(col: "Column", param_prob: Dict[str, float] = None) -> "Between":
+    def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "Between":
         prob = {"bet_nullc" : 0, "bet_callc" : 0.9}
         if param_prob is not None:
             prob.update(param_prob)
         v1 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         v2 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         low, high = sorted([v1, v2], key=lambda x: float(x))
-        return Between(col.name, low, high)
+        return Between(col.name, low, high, table_name)
 
 @dataclass
 class Like(Predicate):
@@ -171,17 +175,19 @@ class Like(Predicate):
     '''
     column: str
     val: str
+    table_name: str
 
     def sql(self) -> str:
-        return f"{self.column} LIKE {self.val}"
+        ret = f"{self.table_name}." if self.table_name else ""
+        return ret + f"{self.column} LIKE {self.val}"
 
     @staticmethod
-    def random(col: "Column", param_prob: Dict[str, float] = None) -> "Like":
+    def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "Like":
         prob = {"like_nullc" : 0.05, "like_callc" : 0.9}
         if param_prob is not None:
             prob.update(param_prob)
         val = Like.generate_like_pattern(random_value("TEXT", prob["like_nullc"], prob["like_callc"]))
-        return Like(col.name, val)
+        return Like(col.name, val, table_name)
     
     @staticmethod
     def generate_like_pattern(base: str) -> str:
@@ -222,19 +228,21 @@ class InList(Predicate):
     '''
     column: str
     values: List[str]
+    table_name: str = ""
 
     def sql(self) -> str:
         value_list = ', '.join(self.values)
-        return f"{self.column} IN ({value_list})"
+        ret = f"{self.table_name}." if self.table_name else ""
+        return ret + f"{self.column} IN ({value_list})"
 
     @staticmethod
-    def random(col: "Column", param_prob: Dict[str, float] = None) -> "InList":
+    def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "InList":
         prob = {"inli_nullc" : 0.05, "inli_callc" : 0.9}
         if param_prob is not None:
             prob.update(param_prob)
         count = random.randint(2, 5)
         values = [random_value(col.dtype, prob["inli_nullc"], prob["inli_callc"]) for _ in range(count)]
-        return InList( col.name, values)
+        return InList(col.name, values, table_name)
     
 @dataclass
 class Exists(Predicate):
@@ -262,20 +270,22 @@ class NullCheck(Predicate):
     '''
     column: str
     check: bool
+    table_name: str
 
     def sql(self) -> str:
+        ret = f"{self.table_name}." if self.table_name else ""
         if self.check:
-            return f"{self.column} IS NULL"
+            return ret + f"{self.column} IS NULL"
         else:
-            return f"{self.column} IS NOT NULL"
+            return ret + f"{self.column} IS NOT NULL"
 
     @staticmethod
-    def random(col: "Column", param_prob: Dict[str, float] = None) -> "NullCheck":
+    def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "NullCheck":
         prob = {"nullc" : 0.5}
         if param_prob is not None:
             prob.update(param_prob)
         check = flip(prob["nullc"])
-        return NullCheck(col.name, check)
+        return NullCheck(col.name, check, table_name)
     
 @dataclass
 class Where(SQLNode):
@@ -313,9 +323,10 @@ class InSubquery(Where):
     '''
     column: "Column" 
     subquery: "Select"
+    table_name: str
 
     def sql(self) -> str: 
-        return f"{self.column.name} IN ({self.subquery.sql()})" #is this missing the WHERE at the beginning of the string?
+        return f"{self.table_name}.{self.column.name} IN ({self.subquery.sql()})" #is this missing the WHERE at the beginning of the string?
 
     @staticmethod
     def random(table: "Table", other_tables: List["Table"],  param_prob: Dict[str, float] = None) -> "InSubquery":
@@ -339,7 +350,7 @@ class InSubquery(Where):
             where=where_clause
         )
 
-        return InSubquery(column=column, subquery=subquery)
+        return InSubquery(column=column, subquery=subquery, table_name=table.name)
 
 @dataclass
 class BooleanExpr(Where):
@@ -754,9 +765,10 @@ class Select(SQLNode):
     offset: Optional[int] = None
     select_case: Optional["Case"] = None
     #having: #this one is confusing, its like a group level condition generally after a group by
+    table_name: str = ""
 
     def sql(self) -> str:
-        all_select = [c.name for c in self.columns] 
+        all_select = [f"{self.table_name}.{c.name}" if self.table_name else c.name for c in self.columns] 
         all_select += [] if not self.select_case else [self.select_case.sql()] 
         base = "SELECT "
         if self.asterisk:
@@ -833,6 +845,7 @@ class Select(SQLNode):
             limit=limit,
             offset=offset,
             select_case=select_case,
+            table_name=table.name
         )
         
 @dataclass
@@ -882,9 +895,9 @@ class View(Table):
         return f"CREATE VIEW {self.name} AS {self.select.sql()}"
     
     @staticmethod
-    def random(table: Table, param_prob: Dict[str,float] = None) -> "View":
+    def random(table: Table, other_tables: List[Table] = None, param_prob: Dict[str,float] = None) -> "View":
         view_name = random_name("view")
-        select = Select.random(table, param_prob=param_prob)
+        select = Select.random(table, other_tables=other_tables, param_prob=param_prob)
         return View(name=view_name, columns=select.columns, select=select)
     
 @dataclass
