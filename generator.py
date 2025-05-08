@@ -465,10 +465,12 @@ class AlterTable(Table):
     ALTER TABLE old_name RENAME TO name
     '''
     name: str
+    table: Table
     old_name: str = ""
     new_col: Optional[Column] = None
     old_col_name: str = ""
     columns: List[Column]
+    idx: Optional[int] = 0
 
     def sql(self) -> str:
         if self.old_col_name:
@@ -491,8 +493,10 @@ class AlterTable(Table):
         new_col = Column.random(param_prob={"unq_p":0.0})
         modified_cols = copy.deepcopy(table.columns)
         modified_cols.append(new_col)
-        table.columns = modified_cols #we need to update the table with the new column
-        return AlterTable(name=table.name, new_col=new_col, columns=modified_cols)
+        return AlterTable(name=table.name, table=table, new_col=new_col, columns=modified_cols)
+    
+    def confirm_add(self):
+        self.table.columns = self.columns
     
     @staticmethod
     def random_col_rename(table: "Table") -> "AlterTable":
@@ -503,14 +507,17 @@ class AlterTable(Table):
         mod_col = mod_cols[idx]
         old_col_name = mod_col.name
         mod_col.name = random_name("col")
-        table.columns[idx] = mod_col #update table with new name
-        return AlterTable(name=table.name, new_col=mod_col, old_col_name=old_col_name, columns=mod_cols)
+        return AlterTable(name=table.name, table=table, new_col=mod_col, old_col_name=old_col_name, columns=mod_cols, idx=idx)
+    
+    def confirm_rename(self):
+        self.table.columns[self.idx] = self.new_col
+
     
     @staticmethod
     def random_tbl_rename(table: "Table") -> "AlterTable":
         if table.viewed:
             return None
-        return AlterTable(name=random_name("atbl"), old_name=table.name, columns=table.columns)
+        return AlterTable(name=random_name("atbl"), table=table, old_name=table.name, columns=table.columns)
 
 @dataclass
 class Insert(SQLNode):
@@ -1232,10 +1239,13 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                     table = random.choice(tables)
             if flip(prob["alt_add"]) or debug and not table.viewed:
                 new_table = AlterTable.random_add(table)
-                query += new_table.sql() + ";\n"
+                if new_table:
+                    new_table.confirm_add()
+                    query += new_table.sql() + ";\n"
             if flip(prob["alt_col"]) or debug and not table.viewed:
                 new_table = AlterTable.random_col_rename(table)
                 if new_table:
+                    new_table.confirm_rename()
                     query += new_table.sql() + ";\n"
             
             if flip(prob["view"]) or debug:

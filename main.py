@@ -60,9 +60,9 @@ if __name__ == "__main__":
 
     prob = {   
         "table"  : 0.2,
-        "alt_ren": 0.2, 
-        "alt_add": 0.2,
-        "alt_col": 0.2,
+        "alt_ren": 0.8, 
+        "alt_add": 0.8,
+        "alt_col": 0.8,
         "select1": 0.2,
         "select2": 0.2,
         "with":    0.2,
