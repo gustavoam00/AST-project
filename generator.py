@@ -3,6 +3,7 @@ import string
 from dataclasses import dataclass
 from typing import List, Optional, Union, Dict
 from config import SEED
+import copy
 
 random.seed(SEED)
 
@@ -132,10 +133,13 @@ class Comparison(Predicate):
         return f"{self.column} {self.operator} {self.value}"
 
     @staticmethod
-    def random(col: "Column") -> "Comparison":
+    def random(col: "Column", param_prob: Dict[str, float] = None) -> "Comparison":
+        prob = {"comp_nullc": 0.05, "comp_callc": 0.9}
+        if param_prob is not None:
+            prob.update(param_prob)
         dtype = col.dtype
         op = random.choice(OPS[dtype])
-        val = random_value(dtype)
+        val = random_value(dtype, prob["comp_nullc"], prob["comp_callc"])
         return Comparison(col.name, op, val)
 
 @dataclass
@@ -151,9 +155,12 @@ class Between(Predicate):
         return f"{self.column} BETWEEN {self.lower} AND {self.upper}"
 
     @staticmethod
-    def random(col: "Column") -> "Between":
-        v1 = random_value(col.dtype, null_chance = 0)
-        v2 = random_value(col.dtype, null_chance = 0)
+    def random(col: "Column", param_prob: Dict[str, float] = None) -> "Between":
+        prob = {"bet_nullc" : 0, "bet_callc" : 0.9}
+        if param_prob is not None:
+            prob.update(param_prob)
+        v1 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
+        v2 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         low, high = sorted([v1, v2], key=lambda x: float(x))
         return Between(col.name, low, high)
 
@@ -169,8 +176,11 @@ class Like(Predicate):
         return f"{self.column} LIKE {self.val}"
 
     @staticmethod
-    def random(col: "Column") -> "Like":
-        val = Like.generate_like_pattern(random_value("TEXT"))
+    def random(col: "Column", param_prob: Dict[str, float] = None) -> "Like":
+        prob = {"like_nullc" : 0.05, "like_callc" : 0.9}
+        if param_prob is not None:
+            prob.update(param_prob)
+        val = Like.generate_like_pattern(random_value("TEXT", prob["like_nullc"], prob["like_callc"]))
         return Like(col.name, val)
     
     @staticmethod
@@ -218,9 +228,12 @@ class InList(Predicate):
         return f"{self.column} IN ({value_list})"
 
     @staticmethod
-    def random(col: "Column") -> "InList":
+    def random(col: "Column", param_prob: Dict[str, float] = None) -> "InList":
+        prob = {"inli_nullc" : 0.05, "inli_callc" : 0.9}
+        if param_prob is not None:
+            prob.update(param_prob)
         count = random.randint(2, 5)
-        values = [random_value(col.dtype) for _ in range(count)]
+        values = [random_value(col.dtype, prob["inli_nullc"], prob["inli_callc"]) for _ in range(count)]
         return InList( col.name, values)
     
 @dataclass
@@ -235,8 +248,11 @@ class Exists(Predicate):
         return f"EXISTS ({self.select.sql()})"
 
     @staticmethod
-    def random(table: "Table") -> "Exists":
-        select = Select.random(table, sample=1, param_prob={"where_p":1, "grp_p":0, "ord_p":0})
+    def random(table: "Table", param_prob: Dict[str, float] = None) -> "Exists":
+        prob = {"where_p" : 1, "grp_p" : 0, "ord_p" : 0}
+        if param_prob is not None:
+            prob.update(param_prob)
+        select = Select.random(table, sample=1, param_prob=prob)
         return Exists(select)
 
 @dataclass
@@ -254,8 +270,11 @@ class NullCheck(Predicate):
             return f"{self.column} IS NOT NULL"
 
     @staticmethod
-    def random(col: "Column") -> "NullCheck":
-        check = flip()
+    def random(col: "Column", param_prob: Dict[str, float] = None) -> "NullCheck":
+        prob = {"nullc" : 0.5}
+        if param_prob is not None:
+            prob.update(param_prob)
+        check = flip(prob["nullc"])
         return NullCheck(col.name, check)
     
 @dataclass
@@ -276,14 +295,14 @@ class Where(SQLNode):
 
         if max_depth <= 0 or flip(prob["depth_p"]):
             if other_tables and flip(prob["sub_p"]):
-                return InSubquery.random(table, other_tables, param_prob={"where_p":prob["where_p"]})
+                return InSubquery.random(table, other_tables, param_prob=param_prob) #{"where_p":prob["where_p"]})
             elif flip(prob["pred_p"]):
                 return Predicate.random(table)
             else:
                 return Predicate.random(table, sub_allow=False) # Index does not accept subqueries
         else:
-            left = Where.random(table, max_depth - 1, param_prob=prob)
-            right = Where.random(table, max_depth - 1, param_prob=prob)
+            left = Where.random(table, max_depth - 1, param_prob=param_prob)
+            right = Where.random(table, max_depth - 1, param_prob=param_prob)
             op = random.choice(["AND", "OR"])
             return BooleanExpr(left, right, op)
 
@@ -436,11 +455,12 @@ class AlterTable(Table):
     name: str
     old_name: str = ""
     new_col: Optional[Column] = None
-    old_col: Optional[Column] = None
+    old_col_name: str = ""
+    columns: List[Column]
 
     def sql(self) -> str:
-        if self.old_col:
-            return f"ALTER TABLE {self.name} RENAME {self.old_col.name} TO {self.new_col.name}"
+        if self.old_col_name:
+            return f"ALTER TABLE {self.name} RENAME {self.old_col_name} TO {self.new_col.name}"
         elif self.new_col:
             return f"ALTER TABLE {self.name} ADD COLUMN {self.new_col.sql()}"
         else:
@@ -454,21 +474,21 @@ class AlterTable(Table):
     @staticmethod
     def random_add(table: "Table") -> "AlterTable":
         new_col = Column.random(param_prob={"unq_p":0.0})
-        modified_col = table.columns
+        modified_col = copy.deepcopy(table.columns)
         modified_col.append(new_col)
         return AlterTable(name=table.name, new_col=new_col, columns=modified_col)
     
     @staticmethod
     def random_col_rename(table: "Table") -> "AlterTable":
-        mod_cols = table.columns
+        mod_cols = copy.deepcopy(table.columns)
         mod_col = random.choice(mod_cols)
-        old_col = Column(name=mod_col.name, dtype=mod_col.dtype)
+        old_col_name = mod_col.name
         mod_col.name = random_name("col")
-        return AlterTable(name=table.name, new_col=mod_col, old_col=old_col, columns=mod_cols)
+        return AlterTable(name=table.name, new_col=mod_col, old_col_name=old_col_name, columns=mod_cols)
     
     @staticmethod
     def random_tbl_rename(table: "Table") -> "AlterTable":
-        return AlterTable(name=random_name("tbl"), old_name=table.name, columns=table.columns)
+        return AlterTable(name=random_name("atbl"), old_name=table.name, columns=table.columns)
 
 @dataclass
 class Insert(SQLNode):
@@ -566,8 +586,8 @@ class Update(SQLNode):
         
         candidate_cols = [col for col in table.columns if not (col.unique or col.primary_key)]
         if not candidate_cols: #no non-unique columns, update likely to crash
-            return None
-            #candidate_cols = col
+            #return None
+            candidate_cols = col
             # where = Where.random(table)
             # vals = [random_value(table.columns[0].dtype,null_chance = 0, callable_chance=1),]
             # cols = [table.columns[0],]
@@ -781,7 +801,7 @@ class Select(SQLNode):
         else:
             selected_cols = random.sample(cols, sample)
 
-        select_case = Case.random(table, random.choice(selected_cols)) if flip(prob["case_p"]) else None
+        select_case = Case.random(table, random.choice(selected_cols), param_prob=param_prob) if flip(prob["case_p"]) else None
         where = Where.random(table, param_prob=param_prob, other_tables=other_tables) if flip(prob["where_p"]) else None
         group_by = random.sample(selected_cols, k=1) if flip(prob["grp_p"]) else None
         order_by = random.sample(selected_cols, k=1) if flip(prob["ord_p"]) else None
@@ -863,9 +883,9 @@ class View(Table):
         return f"CREATE VIEW {self.name} AS {self.select.sql()}"
     
     @staticmethod
-    def random(table: Table) -> "View":
+    def random(table: Table, param_prob: Dict[str,float] = None) -> "View":
         view_name = random_name("view")
-        select = Select.random(table)
+        select = Select.random(table, param_prob=param_prob)
         return View(name=view_name, columns=select.columns, select=select)
     
 @dataclass
@@ -902,7 +922,8 @@ class Index(SQLNode):
         num_cols = random.randint(1, min(len(col_names), 3))
         cols = random.sample(col_names, num_cols)
         unique = flip(prob["uniq_p"])
-        where = Where.random(table, param_prob={"pred_p":0.0, "sub_p":0.0}) if flip(prob["where_p"]) else None
+        # where = Where.random(table, param_prob={"pred_p":0.0, "sub_p":0.0}) if flip(prob["where_p"]) else None
+        where = Where.random(table, param_prob=param_prob) if flip(prob["where_p"]) else None
         return Index(name=name, table=table.name, columns=cols, unique=unique, where=where)
     
 @dataclass
@@ -965,14 +986,14 @@ class Trigger(SQLNode):
         statements = []
         for _ in range(random.randint(1, 3)):
             if flip(0.25):
-                statements.append(Select.random(table).sql()+";")
+                statements.append(Select.random(table, param_prob=param_prob).sql()+";")
                 continue
-            insert = Insert.random(table, non_unique=True, param_prob={"dft_p":0, "conf_p":0.9})
+            insert = Insert.random(table, non_unique=True, param_prob=param_prob) #param_prob={"dft_p":0, "conf_p":0.9})
             if not insert or flip(0.33):
-                statements.append(Delete.random(table).sql()+";")
+                statements.append(Delete.random(table, param_prob=param_prob).sql()+";")
                 continue
             else:
-                update = Update.random(table)
+                update = Update.random(table, param_prob=param_prob)
                 if not update or flip(0.5):
                     statements.append(insert.sql()+";") 
                 else:
@@ -1055,12 +1076,15 @@ class Case(SQLNode):
         return query
 
     @staticmethod
-    def random(table: "Table", column:Optional["Column"]=None, case_dtype:Optional[str]=None) -> "Case":
+    def random(table: "Table", column:Optional["Column"]=None, case_dtype:Optional[str]=None, param_prob: Dict[str, float] = None) -> "Case":
+        prob = {"case_col" : 0.5}
+        if param_prob is not None:
+            prob.update(param_prob)
         if column:
             col = column.name
         else:
             column = random.choice(table.columns)
-            col = "" if flip() else f"{column.name}"
+            col = "" if flip(prob["case_col"]) else f"{column.name}"
         col_dtype = column.dtype
         
         if not case_dtype:
@@ -1073,7 +1097,7 @@ class Case(SQLNode):
             if col:
                 conditions.append(random_value(col_dtype))
             else:
-                conditions.append(Comparison.random(table))
+                conditions.append(Comparison.random(table, param_prob=param_prob))
                 
             values.append(random_value(case_dtype))
         
