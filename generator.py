@@ -28,32 +28,25 @@ VALUES = { # put interesting values to test here
              1e-10, 1e10, 1e308, -1e308,
              ],
 }
-TIMES = [
-    "'now'",
-    "'2025-01-01 12:00:00'",
-    "'2020-06-15 08:45:00'",
-    "'2000-01-01 00:00:00'",
-    "'2030-12-31 23:59:59'",
-    "1700000000",  # UNIX timestamp
-]
-TIME_MODS = [
-    "", 
-    "'+1 day'",
-    "'-2 days'",
-    "'+3 hours'",
-    "'-90 minutes'",
-    "'start of month'",
-    "'start of year'",
-    "'weekday 0'",
-    "'+1 month'",
-    "'-1 year'",
-    "'utc'",
-    "'localtime'",
-]
-TIME_FORMATS = [
-    "'%Y-%m-%d'", "'%H:%M:%S'", "'%s'", "'%w'", "'%Y %W'", "'%j'", "'%Y-%m-%d %H:%M'"
-]
-DATES = ['datetime', 'date', 'time', 'julianday', 'strftime']
+TIME = {
+    "TIMES": ["'now'",
+            "'2025-01-01 12:00:00'",
+            "'2020-06-15 08:45:00'",
+            "'2000-01-01 00:00:00'",
+            "'2030-12-31 23:59:59'",
+            "'1700000000'",
+    ],
+    "TIME_MODS": [
+            "'+1 day'", "'-2 days'", "'+3 hours'", "'-90 minutes'",
+            "'start of month'", "'start of year'", "'weekday 0'",
+            "'+1 month'", "'-1 year'",
+            "'utc'", "'localtime'",
+    ],
+    "TIME_FORMATS": [
+        "'%Y-%m-%d'", "'%H:%M:%S'", "'%s'", "'%w'", "'%Y %W'", "'%j'", "'%Y-%m-%d %H:%M'"
+    ],
+    "DATES": ['datetime', 'date', 'time', 'julianday', 'strftime']
+}
 CALLABLE_VALUES = {
     "INTEGER": lambda: random.randint(-10000, 10000),
     "TEXT": lambda: ("'" + random_name(prefix = "v", length=5) + "'"),
@@ -828,11 +821,11 @@ class Select(SQLNode):
 
         if self.date:
             if flip():
-                base += f", {random.choice(DATES)}({random.choice(TIMES)})"
+                base += f", {random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])})"
             elif flip():
-                base += f", {random.choice(DATES)}({random.choice(TIMES)}, {random.choice(TIME_MODS)})"
+                base += f", {random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})"
             else:
-                base += f", strftime({random.choice(TIME_FORMATS)}, {random.choice(TIMES)}, {random.choice(TIME_MODS)})"
+                base += f", strftime({random.choice(TIME['TIME_FORMATS'])}, {random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})"
         
         base += f" FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         

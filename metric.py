@@ -23,7 +23,7 @@ def get_coverage(result: str) -> tuple[float, str]:
         calls_p = float(calls.group(1))
         return lines_p, branches_p, taken_p, calls_p, result
     else:
-        return 0, "Error: Could not extract coverage info."
+        return 0, 0, 0, 0, "Error: Could not extract coverage info."
     
 def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.5, 1.0)):
     return (
