@@ -7,6 +7,12 @@ import copy
 
 random.seed(SEED)
 
+VIRTUAL = {
+    "types": ["rtree", "fts4", "dbstat"],
+    "dbstat": ["name", "path", "pageno", "pagetype", "ncell", "payload", "unused", "mx_payload", "pgoffset", "pgsize", "schema"],
+    "rtree": ["id", "minX", "maxX", "minY", "maxY"],
+    "fts4": ["title", "body"]
+}
 SQL_TYPES = ["INTEGER", "TEXT", "REAL"]
 SQL_CONSTRAINTS = ["PRIMARY KEY", "UNIQUE", "NOT NULL", "CHECK", "DEFAULT"]
 VALUES = { # put interesting values to test here
@@ -975,7 +981,26 @@ class View(Table):
         select = Select.random(table, other_tables=other_tables, param_prob=prob)
         
         return View(name=view_name, columns=select.columns, select=select, temp=temp)
+
+@dataclass
+class VirtualTable(Table):
+    name: str
+    vtype: str
+    columns: List[Column]
+    cols: List[str]
+
+    def sql(self) -> str:
+        if self.vtype == "dbstat":
+            return f"CREATE VIRTUAL TABLE {self.name} USING {self.vtype}"
+        else:
+            return f"CREATE VIRTUAL TABLE {self.name} USING {self.vtype}({', '.join(self.cols)})"
     
+    def random(param_prob: Dict[str,float] = None) -> "VirtualTable":
+        vtype = random.choice(VIRTUAL["types"])
+        cols = VIRTUAL[vtype]
+        return VirtualTable(name=random_name(vtype), vtype=vtype, cols=cols, columns=[])
+
+
 @dataclass
 class Index(SQLNode):
     '''
