@@ -10,6 +10,29 @@ SELECT CAST("0x1A2B" AS INTEGER);
 SELECT printf("%d", 0x1A2B); 
 
 CREATE VIRTUAL TABLE my_rtree USING rtree(id, minX, maxX, minY, maxY);
+INSERT INTO my_rtree VALUES (1, 0.0, 5.0, 0.0, 5.0);
+INSERT INTO my_rtree VALUES (2, 4.0, 6.0, 4.0, 6.0);
+SELECT id FROM my_rtree
+WHERE minX <= 5.0 AND maxX >= 2.0
+  AND minY <= 5.0 AND maxY >= 2.0;
+DELETE FROM my_rtree WHERE id = 1;
+
+CREATE VIRTUAL TABLE docs USING fts4(title, body);
+SELECT * FROM json_each('{"a":1,"b":2}');
+SELECT * FROM json_tree('{"a": 1, "b": {"c": 2}, "d": [10, 20]}');
+
+CREATE VIRTUAL TABLE emails USING fts4(subject, body);
+INSERT INTO emails (subject, body) VALUES ('hello', 'how are you?');
+SELECT * FROM emails WHERE emails MATCH 'hello';
+
+CREATE VIRTUAL TABLE dbstat USING dbstat;
+SELECT name, path, pageno FROM dbstat WHERE name='your_table_name';
+
+CREATE TABLE docs(id INTEGER PRIMARY KEY, data TEXT);
+INSERT INTO docs(data) VALUES ('{"name":"Alice","age":30,"skills":["SQL","C"]}');
+SELECT jt.key, jt.value
+FROM docs, json_tree(docs.data) AS jt
+WHERE jt.type = 'text';
 
 CREATE TABLE t(x INTEGER);
 INSERT INTO t VALUES (1), (2), (3), ..., (1000);
