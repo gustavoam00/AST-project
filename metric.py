@@ -25,6 +25,12 @@ def get_coverage(result: str) -> tuple[float, str]:
     else:
         return 0, "Error: Could not extract coverage info."
     
+def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.5, 1.0)):
+    return (
+        weights[0] * lines +
+        weights[1] * branches
+    ) / 2.0
+    
 def get_error(result: str) -> str:
     # Error: Constraint Failed.
     # Error: No such table
@@ -61,7 +67,7 @@ def get_error(result: str) -> str:
     # Error: Table Name Already Exists 
     # Error: CTE Expression Exceeds Allowed Recursion Depth 
     # Error: Invalid Value for PRAGMA Configuration 
-    return 0
+    return re.findall(r"(Error:.*)", result)
 
 if __name__ == "__main__":
     query = randomQueryGen(PROB_TABLE, debug=False, cycle=1000)

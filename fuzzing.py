@@ -1,5 +1,6 @@
 from tqdm import tqdm
 from test import coverage_test
+from metric import coverage_score, get_error
 import generator as gen
 import random
 from config import TEST_FOLDER, SEED, PROB_TABLE
@@ -17,8 +18,6 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("Trigger", gen.Trigger, mod_table=True, prob=x),
     Fuzzing("Index", gen.Index, prob=x),
     Fuzzing("Pragma", gen.Pragma, needs_table=False, need_prob=False),
-    Fuzzing("Select", gen.Select, other_tables=True, threshold=10, prob=x),
-    Fuzzing("With", gen.With, threshold=10, prob=x),
     Fuzzing("Delete", gen.Delete, mod_table=True, prob=x), 
     Fuzzing("Replace", gen.Replace, mod_table=True, prob=x) 
 ]
@@ -79,24 +78,28 @@ class Fuzzing:
     def gen_valid_query(self, query: list, table: gen.Table, tables: list):
         for _ in range(self.max):
             node = self.get_random(table, tables)
-            if node:
+            if node: #random.choice(["", "EXPLAIN "]) + 
                 new_query = node.sql() + ";"
             else:
                 new_query = ""
             lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
+            cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
             if "Error" in msg:
                 with open(TEST_FOLDER + "error.txt", "a") as f:
-                    f.write(f"Query: {query + [new_query]}\nMessage: {msg}\n\n")
-            if lines_c > 0:
-                return lines_c, [new_query], node
+                    f.write(f"Query: {query + [new_query]}\n")
+                    for err in get_error(msg):
+                        f.write(f"Message: {err}\n")
+            if cov_valid > 0:
+                return cov_valid, [new_query], node
             
         return 0, [], None
 
-    def generate(self, cov: int, init_query: list, tables: list, nodes: list, find_best: bool = False):
+    def generate(self, cov: int, c, init_query: list, tables: list, nodes: list, find_best: bool = False):
         pbar = tqdm(desc=f"{self.name} (cov={cov}) (query={len(init_query)})")
 
         tries = 0
         best_cov = cov
+        best_c = c
         new_query = init_query
         updated_tables = list(tables)
         best_nodes = nodes
@@ -111,14 +114,16 @@ class Fuzzing:
                 cov_valid, valid_query, node = self.gen_valid_query(init_query, None, updated_tables)
             combined_query = (init_query if find_best else new_query) + valid_query
             lines_c, branch_c, taken_c, calls_c, _ = coverage_test(combined_query)
+            combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
-            if lines_c > best_cov:
-                best_cov = lines_c
+            if combined_cov > best_cov:
+                best_cov = combined_cov
+                best_c = (lines_c, branch_c, taken_c, calls_c)
                 new_query = combined_query
                 best_nodes.append(node)
 
                 if self.rem_table: # alter table
-                    updated_tables = list(filter(lambda x: x.name != table.name, updated_tables))
+                    updated_tables.remove(table) #= list(filter(lambda x: x.name != table.name, updated_tables))
                 if self.gen_table: # view, alter table
                     updated_tables.append(node)
                     init_query += valid_query
@@ -131,24 +136,28 @@ class Fuzzing:
             pbar.update(1)
 
         pbar.close()
-        return best_cov, new_query, updated_tables, best_nodes
+        return best_cov, best_c, new_query, updated_tables, best_nodes
 
 def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list, repeat: int = 1):
     cov = init_cov
     query = init_query
     tables = init_tables
     nodes = init_nodes
+    c = (0, 0, 0, 0)
 
     for i in range(repeat):
         for stage in fuzz_pipeline:
-            cov, query, tables, nodes = stage.generate(cov, query, tables, nodes)
-
-        with open(TEST_FOLDER + f"save_{i}.txt", "w") as f:
-            f.write(f"Best Coverage: {cov}\n")
+            cov, c, query, tables, nodes = stage.generate(cov, c, query, tables, nodes)
+        random.shuffle(fuzz_pipeline)
+        
+        with open(TEST_FOLDER + f"save_{cov}.txt", "w") as f:
+            f.write(f"Best Coverage: {cov}, {c}\n")
             f.write(f"Best Query: {query}\n")
             f.write(f"Tables: {tables}\n")
-        with open(TEST_FOLDER + f"query_{i}.sql", "w") as f:
+        with open(TEST_FOLDER + f"query_{cov}.sql", "w") as f:
             f.write("\n".join(query))
+        with open(TEST_FOLDER + "error.txt", "w") as f:
+            f.write("") # reset error.txt
 
     return cov, query, tables, nodes
 

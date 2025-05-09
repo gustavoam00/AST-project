@@ -7,13 +7,13 @@ import copy
 
 random.seed(SEED)
 
-SQL_TYPES = ["INTEGER", "TEXT", "REAL", "BLOB"]
+SQL_TYPES = ["INTEGER", "TEXT", "REAL"]
 SQL_CONSTRAINTS = ["PRIMARY KEY", "UNIQUE", "NOT NULL", "CHECK", "DEFAULT"]
 VALUES = { # put interesting values to test here
     "INTEGER": [0, 1, -1, 
                 2**31-1, -2**31, 
                 2**63-1, -2**63,
-                9999999999999999,
+                999999999999999999999999999999999999999999999999999999999999999999999999,
                 42, 1337,
                 0x7FFFFFFF, 0x80000000,
                 ],
@@ -27,13 +27,11 @@ VALUES = { # put interesting values to test here
              #float('inf'), float('-inf'), float('nan'),
              1e-10, 1e10, 1e308, -1e308,
              ],
-    "BLOB": ["NULL"]
 }
 CALLABLE_VALUES = {
     "INTEGER": lambda: random.randint(-10000, 10000),
     "TEXT": lambda: ("'" + random_name(prefix = "v", length=5) + "'"),
     "REAL": lambda: random.uniform(-1e5, 1e5),
-    "BLOB": lambda: "NULL"
 }
 OPS = {
     "INTEGER": ["=", "!=", ">", "<", ">=", "<="],
@@ -1044,7 +1042,7 @@ class Trigger(SQLNode):
         statements = []
         for _ in range(random.randint(1, 3)):
             if flip(0.25):
-                statements.append(Select.random(table, param_prob=prob, null_chance=0).sql()+";")
+                statements.append(Select.random(table, param_prob=prob).sql()+";")
                 continue
             insert = Insert.random(table, non_unique=True, param_prob=prob) #param_prob={"dft_p":0, "conf_p":0.9})
             if not insert or flip(0.33):

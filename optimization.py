@@ -14,7 +14,7 @@ def dict_to_vector(prob_dict):
 def vector_to_dict(prob_vector):
     return {key: prob_vector[i] for i, key in enumerate(PROB_KEYS)}
 
-def fuzz_optimize(fuzz_pipeline, prob: dict, popsize: int = 8, num_iterations: int = 5):
+def fuzz_optimize(fuzz_pipeline, prob: dict, popsize: int = 5, num_iterations: int = 5):
     """
     CMA-ES evolution to tweak the probability values 
     """
@@ -33,7 +33,7 @@ def fuzz_optimize(fuzz_pipeline, prob: dict, popsize: int = 8, num_iterations: i
         for sol in solutions:
             prob_dict = vector_to_dict(sol)
             
-            cov, query, _ = run_pipeline(0, [], [], fuzz_pipeline(prob_dict))
+            cov, query, tables, nodes = run_pipeline(0, [], [], [], fuzz_pipeline(prob_dict), repeat=3)
             rewards.append(-cov)  # CMA-ES minimizes
 
             if cov > best_cov:
