@@ -51,7 +51,8 @@ TIME = {
     "TIME_FORMATS": [
         "'%Y-%m-%d'", "'%H:%M:%S'", "'%s'", "'%w'", "'%Y %W'", "'%j'", "'%Y-%m-%d %H:%M'"
     ],
-    "DATES": ['datetime', 'date', 'time', 'julianday', 'strftime']
+    "DATES": ['datetime', 'date', 'time', 'julianday', 'strftime'],
+    "CURRENT": ['current_date', 'current_time', 'current_timestamp']
 }
 CALLABLE_VALUES = {
     "INTEGER": lambda: random.randint(-10000, 10000),
@@ -830,9 +831,11 @@ class Select(SQLNode):
                 base += f", {random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])})"
             elif flip():
                 base += f", {random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})"
-            else:
+            elif flip():
                 base += f", strftime({random.choice(TIME['TIME_FORMATS'])}, {random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})"
-        
+            else:
+                base += f", {random.choice(TIME['CURRENT'])}"
+
         base += f" FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         
         if self.where:

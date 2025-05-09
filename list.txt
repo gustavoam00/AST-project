@@ -1,3 +1,5 @@
+aggregates like AVG, COUNT, etc.
+
 SELECT 'abc';
 SELECT '456' + 1;
 SELECT CAST('123' AS INTEGER); 
@@ -63,3 +65,36 @@ TRUE, FALSE
 CREATE TABLE t(x);
 INSERT INTO t VALUES(1+2);
 UPDATE t SET x = x*2;
+
+
+SELECT length('hello'); 
+SELECT lower('HELLO');      
+SELECT upper('hello');   
+SELECT trim('  hello  ');  
+SELECT ltrim('  hello');       
+SELECT rtrim('hello  ');    
+SELECT replace('hello world', 'world', 'SQLite'); 
+SELECT substr('SQLite', 2, 3);   
+SELECT instr('hello world', 'world');  
+SELECT printf('Hello, %s!', 'World');  
+SELECT hex('abc');                      
+SELECT char(65, 66, 67);                 
+SELECT unicode('É');                      
+SELECT quote('hello');    
+
+SELECT abs(-42);                          
+SELECT round(3.14159);               
+SELECT round(3.14159, 2);             
+SELECT random();                    
+SELECT length(randomblob(4));   
+SELECT total(value) FROM (SELECT NULL as value);
+
+SELECT ifnull(NULL, 'fallback');     
+SELECT ifnull('value', 'fallback');     
+SELECT nullif(5, 5);                
+SELECT nullif(5, 6);          
+SELECT coalesce(NULL, NULL, 'first non-null');
+SELECT typeof(123);          
+SELECT typeof(3.14);                
+SELECT typeof('abc');             
+SELECT typeof(NULL);       
