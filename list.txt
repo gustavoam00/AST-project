@@ -1,5 +1,8 @@
-SELECT datetime('now');
-datetime(text1, text2), typeof(...), julianday(...), strftime(...), time('now'), date('now'), datetime('now')
+SELECT 'abc';
+SELECT '456' + 1;
+SELECT CAST('123' AS INTEGER); 
+
+typeof(...)
 
 SELECT 'Hello, SQLite!' AS greeting;" 
 SELECT CAST("0x1A2B" AS INTEGER);
