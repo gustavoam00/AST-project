@@ -9,9 +9,9 @@ random.seed(SEED)
 
 VIRTUAL = {
     "types": ["rtree", "fts4", "dbstat"],
-    "dbstat": ["name", "path", "pageno", "pagetype", "ncell", "payload", "unused", "mx_payload", "pgoffset", "pgsize", "schema"],
-    "rtree": ["id", "minX", "maxX", "minY", "maxY"],
-    "fts4": ["title", "body"]
+    "dbstat": [{"name": "TEXT"}, {"path": "TEXT"}, {"pageno": "INTEGER"}, {"pagetype": "TEXT"}, {"ncell": "INTEGER"}, {"payload": "INTEGER"}, {"unused": "INTEGER"}, {"mx_payload": "INTEGER"}, {"pgoffset": "INTEGER"}, {"pgsize": "INTEGER"}, {"schema": "TEXT"}],
+    "rtree": [{"id": "INTEGER", "constraint": "PRIMARY KEY"}, {"minX": "REAL"}, {"maxX": "REAL"}, {"minY": "REAL"}, {"maxY": "REAL"}],
+    "fts4": [{"title": "TEXT"}, {"body": "TEXT"}]
 }
 SQL_TYPES = ["INTEGER", "TEXT", "REAL"]
 SQL_CONSTRAINTS = ["PRIMARY KEY", "UNIQUE", "NOT NULL", "CHECK", "DEFAULT"]
@@ -985,20 +985,32 @@ class View(Table):
 @dataclass
 class VirtualTable(Table):
     name: str
-    vtype: str
     columns: List[Column]
-    cols: List[str]
+    vtype: str
 
     def sql(self) -> str:
         if self.vtype == "dbstat":
             return f"CREATE VIRTUAL TABLE {self.name} USING {self.vtype}"
         else:
-            return f"CREATE VIRTUAL TABLE {self.name} USING {self.vtype}({', '.join(self.cols)})"
+            return f"CREATE VIRTUAL TABLE {self.name} USING {self.vtype}({', '.join([c.name for c in self.columns])})"
     
+    '''
+    TODO: NO ALTER TABLE for VIRTUAL TABLES
+    fts4 supports: no foreign keys, otherwise everything is supported
+    rtree supports: no foreign keys, otherwise everything is supported
+    dbstat supports: read_only (no insert, update, delete)
+    '''
     def random(param_prob: Dict[str,float] = None) -> "VirtualTable":
         vtype = random.choice(VIRTUAL["types"])
-        cols = VIRTUAL[vtype]
-        return VirtualTable(name=random_name(vtype), vtype=vtype, cols=cols, columns=[])
+        col_names = VIRTUAL[vtype]
+        columns = []
+        for c in col_names:
+            keys = list(c)
+            if len(keys) == 1:
+                columns.append(Column(name=keys[0], dtype=c[keys[0]]))
+            else:
+                columns.append(Column(name=keys[0], dtype=c[keys[0]], primary_key=True))
+        return VirtualTable(name=random_name(vtype), columns=columns, vtype=vtype)
 
 
 @dataclass
