@@ -1158,15 +1158,30 @@ class Expression(SQLNode):
         return NotImplementedError
     
     @staticmethod
-    def random():
-        return
+    def random(table: "Table", column:Optional["Column"]=None, dtype:Optional[str]=None, param_prob: Dict[str, float]=None):
+        prob = {"lit_p":1, "case_p":0}
+        if param_prob is not None:
+            prob.update(param_prob)
+        
+        weights = [prob["lit_p"], prob["case_p"]]
+        options = [Literal.random, Case.random]
+        fn = random.choices(options, weights=weights, k=1)[0]
+        return fn(table, column=column, dtype=dtype, param_prob=prob)
+
+@dataclass
+class Literal(Expression):
+    def sql(self) -> str:
+        return ""
+    
+    @staticmethod
+    def random(table: "Table", column:Optional["Column"]=None, dtype:Optional[str]="TYPELESS", param_prob: Dict[str, float]=None):
+        prob = {"null_p":0.1, "call_p":0.9}
+        if param_prob is not None:
+            prob.update(param_prob)
+        return random_value(dtype=dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
     
 @dataclass
-class Case(SQLNode):
-    """
-    A Expression, cant be used alone
-    Put it inside select, where, order by, and update
-    """
+class Case(Expression):
     conditions:List[str]
     values:List[str]
     col:str
@@ -1188,7 +1203,7 @@ class Case(SQLNode):
         return query
 
     @staticmethod
-    def random(table: "Table", column:Optional["Column"]=None, case_dtype:Optional[str]=None, param_prob: Dict[str, float] = None) -> "Case":
+    def random(table: "Table", column:Optional["Column"]=None, dtype:Optional[str]=None, param_prob: Dict[str, float] = None) -> "Case":
         prob = {"case_col" : 0.5}
         if param_prob is not None:
             prob.update(param_prob)
@@ -1200,8 +1215,8 @@ class Case(SQLNode):
             col = "" if flip(prob["case_col"]) else f"{table.name}.{column.name}"
         col_dtype = column.dtype
         
-        if not case_dtype:
-            case_dtype = random_type()
+        if not dtype:
+            dtype = random_type()
             
         num_cases = random.randint(1,5)
         conditions = []
@@ -1212,9 +1227,9 @@ class Case(SQLNode):
             else:
                 conditions.append(Comparison.random(table, param_prob=prob))
                 
-            values.append(random_value(case_dtype))
+            values.append(random_value(dtype))
         
-        else_ = "" if flip() else random_value(case_dtype)
+        else_ = "" if flip() else random_value(dtype)
         return Case(conditions, values, col, else_, col_dtype)
     
 
