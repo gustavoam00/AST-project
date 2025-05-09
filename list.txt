@@ -8,11 +8,6 @@ SELECT 'Hello, SQLite!' AS greeting;"
 SELECT CAST("0x1A2B" AS INTEGER);
 
 SELECT printf("%d", 0x1A2B); 
-INSERT INTO my_table (value) VALUES (12345678900000000000000000000000000000000);
-
-CREATE TABLE test(x INTEGER, y TEXT);
-INSERT INTO test VALUES (1, 'a'), (123456789, 'b'), (9223372036854775807, 'c'); -- large ints = varints
-SELECT * FROM test WHERE x = 123456789;
 
 CREATE VIRTUAL TABLE my_rtree USING rtree(id, minX, maxX, minY, maxY);
 
