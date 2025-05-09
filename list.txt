@@ -27,4 +27,18 @@ BEGIN; COMMIT; ROLLBACK;
 .open test.db
 .exit
 
+# 100MB, maybe for unix file-system?
+PRAGMA mmap_size = 104857600;
 
+# BLOB: maybe but don't really need it (only small increase)
+CREATE TABLE t(x BLOB);
+INSERT INTO t VALUES (zeroblob(1000000));
+SELECT length(x) FROM t;
+
+# boolean type: not sure if that matters, small increase in coverage
+BOOLEAN
+TRUE, FALSE
+
+CREATE TABLE t(x);
+INSERT INTO t VALUES(1+2);
+UPDATE t SET x = x*2;
