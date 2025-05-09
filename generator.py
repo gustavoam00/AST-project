@@ -507,7 +507,7 @@ class AlterTable(Table):
         
     @staticmethod
     def random(table: "Table") -> "AlterTable":
-        if table.viewed: #modifying tbales breaks views
+        if table.viewed or isinstance(table, VirtualTable): #modifying tbales breaks views, cannot modify vtables
             return None
         
         fn = random.choice([AlterTable.random_add, AlterTable.random_col_rename, AlterTable.random_tbl_rename])
