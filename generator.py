@@ -28,6 +28,32 @@ VALUES = { # put interesting values to test here
              1e-10, 1e10, 1e308, -1e308,
              ],
 }
+TIMES = [
+    "'now'",
+    "'2025-01-01 12:00:00'",
+    "'2020-06-15 08:45:00'",
+    "'2000-01-01 00:00:00'",
+    "'2030-12-31 23:59:59'",
+    "1700000000",  # UNIX timestamp
+]
+TIME_MODS = [
+    "", 
+    "'+1 day'",
+    "'-2 days'",
+    "'+3 hours'",
+    "'-90 minutes'",
+    "'start of month'",
+    "'start of year'",
+    "'weekday 0'",
+    "'+1 month'",
+    "'-1 year'",
+    "'utc'",
+    "'localtime'",
+]
+TIME_FORMATS = [
+    "'%Y-%m-%d'", "'%H:%M:%S'", "'%s'", "'%w'", "'%Y %W'", "'%j'", "'%Y-%m-%d %H:%M'"
+]
+DATES = ['datetime', 'date', 'time', 'julianday', 'strftime']
 CALLABLE_VALUES = {
     "INTEGER": lambda: random.randint(-10000, 10000),
     "TEXT": lambda: ("'" + random_name(prefix = "v", length=5) + "'"),
@@ -776,6 +802,7 @@ class Select(SQLNode):
     asterisk: bool = False
     one: bool = False
     omit:bool = False
+    date:bool = False
     where: Optional[Where] = None
     group_by: Optional[List[Column]] = None
     order_by: Optional[List[Column]] = None
@@ -792,11 +819,20 @@ class Select(SQLNode):
         if self.asterisk:
             base += "*"
         elif self.one:
-            base += "1"
+            #TODO: random expression "1" + "2", "a" + "1", "abc"
+            base += "1" 
             if self.omit:
                 return base
         else:
             base += f"{', '.join(all_select)}"
+
+        if self.date:
+            if flip():
+                base += f", {random.choice(DATES)}({random.choice(TIMES)})"
+            elif flip():
+                base += f", {random.choice(DATES)}({random.choice(TIMES)}, {random.choice(TIME_MODS)})"
+            else:
+                base += f", strftime({random.choice(TIME_FORMATS)}, {random.choice(TIMES)}, {random.choice(TIME_MODS)})"
         
         base += f" FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         
@@ -817,11 +853,12 @@ class Select(SQLNode):
 
     @staticmethod
     def random(table: Table, sample: int = None, other_tables: list[Table] = None, param_cols: List[Column] = None, param_prob:Dict[str, float] = None) -> "Select":
-        prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.2, "offst_p":0.5, "*_p":0.2, "omit_p":0.2, "one_p":0.05}
+        prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.2, "offst_p":0.5, "*_p":0.2, "omit_p":0.2, "one_p":0.05, "date_p":0.1}
         if param_prob is not None:
             prob.update(param_prob)
         
         asterisk = flip(prob["*_p"]) and not sample
+        date = flip(prob["date_p"])
         one = flip(prob["one_p"]) and not (sample or asterisk or param_cols)
         omit = one and flip(prob["omit_p"])
         
@@ -863,6 +900,7 @@ class Select(SQLNode):
             asterisk=asterisk,
             one=one,
             omit=omit,
+            date=date,
             from_clause=from_clause,
             where=where,
             group_by=group_by,

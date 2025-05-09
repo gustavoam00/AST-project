@@ -16,6 +16,7 @@ PROB_TABLE = {
     "offst_p":0.5, "*_p":0.2, "omit_p":0.2, "one_p":0.1,
     "urec_p": 0.5, "uniq_p": 0.01,
     "temp_p":0.2, "nex_p":0.2, "upcol_p":0.2, "feac_p":0.2,
+    "date_p":0.1
 }
 '''
     "alt_ren": 0.1, 
