@@ -22,3 +22,9 @@ CREATE TABLE t(x);
 INSERT INTO t(x) VALUES(:myparam);
 
 BEGIN; COMMIT; ROLLBACK;
+
+# does not work from coverage_test
+.open test.db
+.exit
+
+
