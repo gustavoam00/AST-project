@@ -1003,7 +1003,7 @@ class VirtualTable(Table):
     rtree supports: no foreign keys, otherwise everything is supported
     dbstat supports: read_only (no insert, update, delete)
     '''
-    def random(param_prob: Dict[str,float] = None) -> "VirtualTable":
+    def random() -> "VirtualTable":
         vtype = random.choice(VIRTUAL["types"])
         col_names = VIRTUAL[vtype]
         columns = []

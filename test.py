@@ -17,9 +17,6 @@ def coverage_test(sql_query):
     """
     commands = [f"./sqlite3 test.db \"{query}\"" for query in sql_query]
     commands.append("gcov -b -o . sqlite3-sqlite3.c") # gcov to get coverage
-    # gcov sqlite3.c > coverage.txt
-    # grep -B 3 -A 3 'sqlite3Error' coverage.tx
-    # gcov -b -o . sqlite3-sqlite3.c
     command_str = " ; ".join(commands)
     client = docker.from_env()
     try:
@@ -35,6 +32,9 @@ def coverage_test(sql_query):
         logging.error(f"Error running query: {e}")
         return (0, str(e))
 
+def reset():
+    # does nothing, just here because fuzzing calls reset() to reset the docker if local.py is used
+    return 0 
 
 def run_query(sql_query, sqlite_version):
     """
@@ -76,7 +76,10 @@ if __name__ == "__main__":
         "CREATE TABLE t0(c0 INT);",
         "CREATE INDEX i0 ON t0(1) WHERE c0 NOT NULL;",
         "INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3);",
-        "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;"
+        "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;",
+    ]
+    FULL = [
+        "CREATE TABLE t0(c0 INT); CREATE INDEX i0 ON t0(1) WHERE c0 NOT NULL; INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3); SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;"
     ]
     #test(SQL_TEST_QUERY)
     print(coverage_test(SQL_TEST_QUERY))
