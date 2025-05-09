@@ -12,12 +12,16 @@ def metric(query: Union[List, str]) -> Counter:
     return Counter(upper)
 
 def get_coverage(result: str) -> tuple[float, str]:
-    match = re.search(r"Lines executed:([\d.]+)% of (\d+)", result)
-    if match:
-        percent = float(match.group(1))
-        #lines = int(match.group(2))
-        #print(f"Coverage: {percent}% of {lines} lines")
-        return percent, result
+    lines = re.search(r"Lines executed:([\d.]+)% of (\d+)", result)
+    branches = re.search(r"Branches executed:([\d.]+)% of (\d+)", result)
+    taken = re.search(r"Taken at least once:([\d.]+)% of (\d+)", result)
+    calls = re.search(r"Calls executed:([\d.]+)% of (\d+)", result)
+    if lines and branches and taken and calls:
+        lines_p = float(lines.group(1))
+        branches_p = float(branches.group(1))
+        taken_p = float(taken.group(1))
+        calls_p = float(calls.group(1))
+        return lines_p, branches_p, taken_p, calls_p, result
     else:
         return 0, "Error: Could not extract coverage info."
     

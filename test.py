@@ -16,7 +16,10 @@ def coverage_test(sql_query):
     Test coverage for sqlite3-3.26.0
     """
     commands = [f"./sqlite3 test.db \"{query}\"" for query in sql_query]
-    commands.append("gcov -o . sqlite3-sqlite3.c") # gcov to get coverage
+    commands.append("gcov -b -o . sqlite3-sqlite3.c") # gcov to get coverage
+    # gcov sqlite3.c > coverage.txt
+    # grep -B 3 -A 3 'sqlite3Error' coverage.tx
+    # gcov -b -o . sqlite3-sqlite3.c
     command_str = " ; ".join(commands)
     client = docker.from_env()
     try:

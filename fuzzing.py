@@ -83,17 +83,17 @@ class Fuzzing:
                 new_query = node.sql() + ";"
             else:
                 new_query = ""
-            cov_valid, msg = coverage_test(query + [new_query])
+            lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
             if "Error" in msg:
                 with open(TEST_FOLDER + "error.txt", "a") as f:
                     f.write(f"Query: {query + [new_query]}\nMessage: {msg}\n\n")
-            if cov_valid > 0:
-                return cov_valid, [new_query], node
+            if lines_c > 0:
+                return lines_c, [new_query], node
             
         return 0, [], None
 
     def generate(self, cov: int, init_query: list, tables: list, nodes: list, find_best: bool = False):
-        pbar = tqdm(total=self.threshold, desc=f"{self.name} (cov={cov}) (query={len(init_query)})")
+        pbar = tqdm(desc=f"{self.name} (cov={cov}) (query={len(init_query)})")
 
         tries = 0
         best_cov = cov
@@ -110,10 +110,10 @@ class Fuzzing:
             else:
                 cov_valid, valid_query, node = self.gen_valid_query(init_query, None, updated_tables)
             combined_query = (init_query if find_best else new_query) + valid_query
-            combined_cov, _ = coverage_test(combined_query)
+            lines_c, branch_c, taken_c, calls_c, _ = coverage_test(combined_query)
 
-            if combined_cov > best_cov:
-                best_cov = combined_cov
+            if lines_c > best_cov:
+                best_cov = lines_c
                 new_query = combined_query
                 best_nodes.append(node)
 
@@ -151,6 +151,26 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
             f.write("\n".join(query))
 
     return cov, query, tables, nodes
+
+def delta_debug(query_seq: list, baseline_coverage, coverage_test):
+    n = 2
+    while len(query_seq) >= 2:
+        chunk_size = len(query_seq) // n
+        chunks = [query_seq[i:i+chunk_size] for i in range(0, len(query_seq), chunk_size)]
+
+        for i in range(len(chunks)):
+            trial = [query for j, chunk in enumerate(chunks) if j != i for query in chunk]
+            trial_cov, _ = coverage_test(trial)
+            if trial_cov > baseline_coverage:
+                query_seq = trial
+                n = max(n - 1, 2)
+                break
+        else:
+            if n == len(query_seq):
+                break
+            n = min(n * 2, len(query_seq))
+
+    return query_seq
 
 if __name__ == "__main__":
     cov, query, tables, nodes = run_pipeline(0, [], [], [], FUZZING_PIPELINE(PROB_TABLE), repeat=5)
