@@ -102,7 +102,7 @@ def random_value(dtype:str, null_chance:float = 0.05, callable_chance:float = 0.
     if flip(null_chance):
         return "NULL"
     
-    dtype = random_type() if dtype == "TYPELESS" else dtype
+    dtype = random_type() if dtype == "TYPELESS" or dtype is None else dtype
     return str(CALLABLE_VALUES[dtype]()) if flip(callable_chance) else str(random.choice(VALUES[dtype]))
     
 def flip(weight:float = 0.5) -> bool:  
@@ -117,15 +117,164 @@ def flip(weight:float = 0.5) -> bool:
     """
     return random.random() < weight
 
+def random_chars(k):
+    return "'" + ''.join(random.choices(string.ascii_letters + ' ', k=k)) + "'"
+    
+def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
+    """
+    Applies a random SQLite expression-compatible transformation to the given expression,
+    returning the new SQL expression and its resulting type.
+
+    Args:
+        expr (str): (column name, literal, any expression)
+        dtype (str): (TEXT, INTEGER, REAL)
+
+    Returns:
+        tuple[str, str]: (transformed expression, resulting SQL type)
+    """
+
+    transformations = [
+        (f"{expr} < {random_value(dtype, null_chance=0)}", "INTEGER"),
+        (f"{expr} <= {random_value(dtype, null_chance=0)}", "INTEGER"),
+        (f"{expr} > {random_value(dtype, null_chance=0)}", "INTEGER"),
+        (f"{expr} >= {random_value(dtype, null_chance=0)}", "INTEGER"),
+        (f"{expr} = {random_value(dtype, null_chance=0)}", "INTEGER"),
+        (f"{expr} != {random_value(dtype, null_chance=0)}", "INTEGER"),
+        (f"{random_value(dtype, null_chance=0)} > {expr}", "INTEGER"),
+        (f"{random_value(dtype, null_chance=0)} >= {expr}", "INTEGER"),
+        (f"{random_value(dtype, null_chance=0)} < {expr}", "INTEGER"),
+        (f"{random_value(dtype, null_chance=0)} <= {expr}", "INTEGER"),
+        (f"{random_value(dtype, null_chance=0)} = {expr}", "INTEGER"),
+        (f"{random_value(dtype, null_chance=0)} != {expr}", "INTEGER"),
+        (f"{expr} IS NULL", "INTEGER"),
+        (f"{expr} IS NOT NULL", "INTEGER"),
+        (f"TYPEOF({expr})", "TEXT"),
+    ]
+
+    if dtype == "TEXT":
+        transformations.extend([
+            (f"LOWER({expr})", "TEXT"),
+            (f"UPPER({expr})", "TEXT"),
+            (f"HEX({expr})", "TEXT"),
+            (f"QUOTE({expr})", "TEXT"),
+            (f"TRIM({expr}, {random_chars(1)})", "TEXT"),
+            (f"LTRIM({expr}, {random_chars(1)})", "TEXT"),
+            (f"RTRIM({expr}, {random_chars(1)})", "TEXT"),
+            (f"REPLACE({expr}, {random_chars(2)}, {random_chars(2)})", "TEXT"),
+            (f"SUBSTR({expr}, {random.randint(1, 5)}, {random.randint(1, 5)})", "TEXT"),
+            (f"{expr} || {random_chars(3)}", "TEXT"),
+            (f"{random_chars(3)} || {expr}", "TEXT"),
+            (f"INSTR({expr}, {random_chars(2)})", "INTEGER"),
+            (f"LENGTH({expr})", "INTEGER"),
+            (f"{expr} LIKE {random_chars(4)}", "INTEGER"),
+            (f"{expr} GLOB {random_chars(4)}", "INTEGER"),
+            (f"PRINTF('%10s', {expr})", "TEXT"),
+            (f"PRINTF('%-10s', {expr})", "TEXT"),
+            (f"PRINTF('%.3s', {expr})", "TEXT"),
+        ])
+    elif dtype in ("INTEGER", "REAL"):
+        transformations.extend([
+            (f"{expr} + {random_value(dtype, null_chance=0)}", dtype),
+            (f"{random_value(dtype, null_chance=0)} + {expr}", dtype),
+            (f"{expr} - {random_value(dtype, null_chance=0)}", dtype),
+            (f"{random_value(dtype, null_chance=0)} - {expr}", dtype),
+            (f"{expr} * {random_value(dtype, null_chance=0)}", dtype),
+            (f"{random_value(dtype, null_chance=0)} * {expr}", dtype),
+            (f"{expr} / {random_value(dtype, null_chance=0)}", "REAL"),
+            (f"{random_value(dtype, null_chance=0)} / {expr}", "REAL"),
+            (f"ABS({expr})", dtype),
+            (f"ROUND({expr})", dtype),
+            (f"ROUND({expr}, {random.randint(0, 3)})", dtype),
+            (f"COALESCE({expr}, {random_value(dtype, null_chance=1.0)})", dtype),
+            (f"IFNULL({expr}, {random_value(dtype, null_chance=1.0)})", dtype),
+            (f"-{expr}", dtype),
+            (f"+{expr}", dtype),
+            (f"PRINTF('Value: {'%.2f' if dtype == 'REAL' else '%d'}', {expr})", "TEXT"),
+            (f"PRINTF('Hex: %x', {expr})", "TEXT"),
+            (f"PRINTF('Octal: %o', {expr})", "TEXT"),
+            (f"PRINTF('Char: %c', {expr})", "TEXT"),
+            (f"PRINTF('Scientific: %.6e', {expr})", "TEXT"),
+            (f"PRINTF('Compact: %.1g', {expr})", "TEXT"),
+            (f"PRINTF('Percent: %.0f%%', {expr})", "TEXT"),
+        ])
+    else:
+        return expr, dtype
+
+    return random.choice(transformations)
+
+def apply_random_aggregate_function(expr: str, dtype: str) -> tuple[str, str]:
+    """
+    Applies a random SQLite aggregate function to the given expression,
+    returning the new SQL expression and its resulting type.
+
+    Args:
+        expr (str): SQL expression
+        dtype (str): Data type of the expression (TEXT, INTEGER, REAL)
+
+    Returns:
+        tuple[str, str]: (aggregate expression, result dtype)
+    """
+
+    aggregates = [
+        (f"COUNT({expr})", "INTEGER"),
+        (f"COUNT(DISTINCT {expr})", "INTEGER"),
+        (f"MAX({expr})", dtype),
+        (f"MIN({expr})", dtype)
+    ]
+
+    if dtype in ["INTEGER", "REAL"]:
+        aggregates += [
+            (f"AVG({expr})", "REAL"),
+            (f"SUM({expr})", dtype),
+            (f"TOTAL({expr})", "REAL")
+        ]
+    
+    if dtype == "TEXT":
+        aggregates += [
+            (f"GROUP_CONCAT({expr})", "TEXT"),
+            (f"GROUP_CONCAT({expr}, ', ')", "TEXT")
+        ]
+
+    return random.choice(aggregates)
+
+
+def apply_random_cast(expr: str, dtype: str) -> tuple[str, str]:
+    """
+    Applies a random valid CAST to the given expression, based on its current dtype.
+
+    Args:
+        expr (str): (column name, literal, or expression).
+        dtype (str): (TEXT, INTEGER, REAL).
+
+    Returns:
+        tuple[str, str]: (transformed expression using CAST, new resulting dtype)
+    """
+
+    valid_casts = {
+        "TEXT":    ["INTEGER", "REAL"],
+        "INTEGER": ["TEXT", "REAL"],
+        "REAL":    ["TEXT", "INTEGER"],
+    }
+
+    target = random.choice(valid_casts.get(dtype, ["TEXT",]))
+
+    cast_expr = f"CAST({expr} AS {target})"
+    return cast_expr, target
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------#
+
 class SQLNode:
     def sql(self) -> str:
         return ""
         #raise NotImplementedError
 
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------#
+
 @dataclass
 class Predicate(SQLNode):
     def sql(self) -> str:
-        raise NotImplementedError
+        return ""
     
     @staticmethod
     def random(table: "Table", sub_allow: bool = True) -> "Predicate":
@@ -274,7 +423,6 @@ class InList(Predicate):
 class Exists(Predicate):
     '''
     EXISTS (SELECT 1 FROM ... WHERE ...)
-    apparently select 1 acts the same as any other column so we probably dont need to add the functionality
     '''
     select: "Select"
 
@@ -283,7 +431,7 @@ class Exists(Predicate):
 
     @staticmethod
     def random(table: "Table", param_prob: Dict[str, float] = None) -> "Exists":
-        prob = {"where_p" : 1, "grp_p" : 0, "ord_p" : 0}
+        prob = {"where_p" : 1, "grp_p" : 0, "ord_p" : 0, "*_p":0, "cols_p":0, "one_p":1, "omit_p":0, "lit_p":1}
         if param_prob is not None:
             prob.update(param_prob)
         select = Select.random(table, sample=1, param_prob=prob)
@@ -312,14 +460,192 @@ class NullCheck(Predicate):
             prob.update(param_prob)
         check = flip(prob["nullc"])
         return NullCheck(col.name, check, table_name)
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------#
+
+@dataclass
+class Expression(SQLNode):
+    """
+    Expression is anything that computes a value.
     
+    TODO Put it inside where and update?
+    """
+    def sql(self) -> str:
+        return ""
+    
+    @staticmethod
+    def random(table: "Table", column:Optional["Column"]=None, dtype:str=None, no_cols:bool=False, agg:bool = False, param_prob: Dict[str, float]=None):
+        prob = {"nocol_p":0.5, "cole_p": 0.8, "lit_p":0.8, "case_p":0.05, "time_p": 0.2, "nocol_p":0.5}
+        if param_prob is not None:
+            prob.update(param_prob)
+        
+        if agg:
+            if flip(prob["lit_p"] / (prob["lit_p"] + prob["cole_p"])):
+                return Literal.random(dtype=dtype, agg=True, param_prob=prob)
+            else:
+                return ColumnExpression.random(table, column=column, agg=True, param_prob=prob)
+
+        elif no_cols or flip(prob["nocol_p"]):
+            if flip(prob["lit_p"] / (prob["lit_p"] + prob["time_p"])):
+                return Literal.random(dtype=dtype, param_prob=prob)
+            else:
+                return Time.random(param_prob=prob)
+
+        else:
+            if flip(prob["cole_p"] / (prob["cole_p"] + prob["case_p"])):
+                return ColumnExpression.random(table, column=column, param_prob=prob)
+            else:
+                return Case.random(table, column=column, dtype=dtype, param_prob=prob)
+
+@dataclass
+class Literal(Expression):
+    value:str
+    
+    def sql(self) -> str:
+        return self.value
+    
+    @staticmethod
+    def random(dtype:str=None, agg:bool = False, param_prob: Dict[str, float]=None) -> "Literal":
+        prob = {"null_p":0.1, "call_p":0.9, "one_p":0.05, "std_p": 0.5, "form_p":0.3, "cast_p":0.2, "agg2_p": 0.5}
+        if param_prob is not None:
+            prob.update(param_prob)
+            
+        if flip(prob["one_p"]):
+            return Literal(value="1")
+        
+        value = random_value(dtype=dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
+        current_dtype = dtype
+        
+        if flip(prob["std_p"]):
+            return Literal(value=value)
+        
+        for _ in range(random.randint(1,3)):
+            if flip(prob["form_p"]):
+                value, current_dtype = apply_random_formula(value, current_dtype)
+            if flip(prob["cast_p"]):
+                value, current_dtype = apply_random_cast(value, current_dtype)
+        
+        if agg and flip(prob["agg2_p"]):
+            value, current_dtype = apply_random_aggregate_function(value, current_dtype) #aggregrate cannot be nested
+        
+        return Literal(value=value)
+    
+@dataclass
+class Time(Expression):
+    value:str
+    
+    def sql(self) -> str:
+        return self.value
+    
+    @staticmethod
+    def random(param_prob: Dict[str, float]=None) -> "Time":
+        prob = {}
+        if param_prob is not None:
+            prob.update(param_prob)
+        
+        options = [
+            f"{random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])})",
+            f"{random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})",
+            f"strftime({random.choice(TIME['TIME_FORMATS'])}, {random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})",
+            f"{random.choice(TIME['CURRENT'])}"
+        ]
+        return Time(value=random.choice(options))
+
+@dataclass
+class ColumnExpression(Expression):
+    value: str
+    
+    def sql(self) -> str:   
+        return self.value
+
+    @staticmethod
+    def random(table: "Table", column:Optional["Column"]=None, agg:bool = False, param_prob: Dict[str, float] = None) -> "ColumnExpression":
+        prob = {"std_p": 0.4, "form_p": 0.4, "cast_p":0.2}
+        if param_prob is not None:
+            prob.update(param_prob)
+
+        if column is None:
+            column = random.choice(table.columns)
+        current_dtype = column.dtype
+        value = f"{table.name}.{column.name}"
+            
+        if flip(prob["std_p"]):
+            return ColumnExpression(value=value)
+        
+        for _ in range(random.randint(1,3)):
+            if flip(prob["form_p"]):
+                value, current_dtype = apply_random_formula(value, current_dtype)
+            if flip(prob["cast_p"]):
+                value, current_dtype = apply_random_cast(value, current_dtype)
+            
+        if agg:
+            value, current_dtype = apply_random_aggregate_function(value, current_dtype)
+        
+        return ColumnExpression(value=value)
+        
+    
+@dataclass
+class Case(Expression):
+    conditions:List[str]
+    values:List[str]
+    col:str
+    else_:str
+    dtype: str
+    
+    def sql(self) -> str:
+        query = f"CASE "
+        if self.col:
+            query += f"{self.col} "
+        
+        for conditon, value in zip(self.conditions, self.values):
+            query += f"WHEN {conditon} THEN {value} "
+            
+        if self.else_:
+            query += f"ELSE {self.else_} "
+            
+        query += "END"    
+        return query
+
+    @staticmethod
+    def random(table: "Table", column:Optional["Column"]=None, dtype:Optional[str]=None, param_prob: Dict[str, float] = None) -> "Case":
+        prob = {"case_col_p" : 0.5}
+        if param_prob is not None:
+            prob.update(param_prob)
+            
+        if column:
+            col = f"{table.name}.{column.name}"
+        else:
+            column = random.choice(table.columns)
+            col = "" if flip(prob["case_col_p"]) else f"{table.name}.{column.name}"
+        col_dtype = column.dtype
+        
+        if not dtype:
+            dtype = random_type()
+            
+        num_cases = random.randint(1,5)
+        conditions = []
+        values = []
+        for _ in range(num_cases):
+            if col:
+                conditions.append(random_value(col_dtype))
+            else:
+                conditions.append(Comparison.random(column, param_prob=prob).sql())
+                
+            values.append(random_value(dtype))
+        
+        else_ = "" if flip() else random_value(dtype)
+        return Case(conditions, values, col, else_, col_dtype)
+    
+    
+#----------------------------------------------------------------------------------------------------------------------------------------------------#   
+
 @dataclass
 class Where(SQLNode):
     '''
     WHERE Predicate/InSubquery/WHERE
     '''
     def sql(self) -> str:
-        raise NotImplementedError 
+        return ""
 
     @staticmethod
     def random(table: "Table", max_depth: int = 1, other_tables: List["Table"] = None, param_prob: Dict[str, float] = None) -> "Where":
@@ -371,7 +697,8 @@ class InSubquery(Where):
             
         where_clause = Where.random(other_table, max_depth=1, param_prob=prob) if flip(prob["where_p"]) else None
         subquery = Select(
-            columns=[sub_col],
+            expressions = [f"{other_table.name}.{sub_col.name}",],
+            columns=[sub_col,],
             from_clause=other_table,
             where=where_clause
         )
@@ -389,6 +716,8 @@ class BooleanExpr(Where):
 
     def sql(self) -> str:
         return f"({self.left.sql()} {self.operator} {self.right.sql()})"
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------#
 
 @dataclass
 class Column:
@@ -544,6 +873,8 @@ class AlterTable(Table):
         if table.viewed:
             return None
         return AlterTable(name=random_name("atbl"), table=table, old_name=table.name, columns=table.columns)
+    
+#----------------------------------------------------------------------------------------------------------------------------------------------------#
 
 @dataclass
 class Insert(SQLNode):
@@ -738,6 +1069,7 @@ class Replace(SQLNode):
 
         return Replace(table=table.name, columns=cols, values=vals, default=default, full=full)
     
+#----------------------------------------------------------------------------------------------------------------------------------------------------#
 
 @dataclass
 class Join(SQLNode):
@@ -797,10 +1129,9 @@ class Join(SQLNode):
 
 @dataclass
 class Select(SQLNode):
-    columns: List[Column]
+    expressions: List[str]
     from_clause: Union[Table, Join]
     asterisk: bool = False
-    one: bool = False
     omit:bool = False
     date:bool = False
     where: Optional[Where] = None
@@ -808,33 +1139,18 @@ class Select(SQLNode):
     order_by: Optional[List[Column]] = None
     limit: Optional[int] = None
     offset: Optional[int] = None
-    select_case: Optional["Case"] = None
+    columns: Optional[List[Column]] = None
     #having: #this one is confusing, its like a group level condition generally after a group by
-    table_name: str = ""
 
     def sql(self) -> str:
-        all_select = [f"{self.table_name}.{c.name}" if self.table_name else c.name for c in self.columns] 
-        all_select += [] if not self.select_case else [self.select_case.sql()] 
         base = "SELECT "
         if self.asterisk:
             base += "*"
-        elif self.one:
-            #TODO: random expression "1" + "2", "a" + "1", "abc"
-            base += "1" 
-            if self.omit:
-                return base
         else:
-            base += f"{', '.join(all_select)}"
-
-        if self.date:
-            if flip():
-                base += f", {random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])})"
-            elif flip():
-                base += f", {random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})"
-            elif flip():
-                base += f", strftime({random.choice(TIME['TIME_FORMATS'])}, {random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})"
-            else:
-                base += f", {random.choice(TIME['CURRENT'])}"
+            base += f"{', '.join(self.expressions)}"
+            
+        if self.omit:
+            return base
 
         base += f" FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         
@@ -855,31 +1171,53 @@ class Select(SQLNode):
 
     @staticmethod
     def random(table: Table, sample: int = None, other_tables: list[Table] = None, param_cols: List[Column] = None, param_prob:Dict[str, float] = None) -> "Select":
-        prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.2, "offst_p":0.5, "*_p":0.2, "omit_p":0.2, "one_p":0.05, "date_p":0.1}
+        prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.05, "offst_p":0.5, "*_p":0.2, "omit_p":0.1, "one_p":0.05, "date_p":0.1, "cols_p":0.5, "agg_p":0.1, "count_p":0.3}
         if param_prob is not None:
             prob.update(param_prob)
-        
-        asterisk = flip(prob["*_p"]) and not sample
-        date = flip(prob["date_p"])
-        one = flip(prob["one_p"]) and not (sample or asterisk or param_cols)
-        omit = one and flip(prob["omit_p"])
         
         if param_cols:
             cols = param_cols
         else:
             cols = table.columns
             
-        if asterisk:
+        if flip(prob["*_p"]): # option 1: * (ALL)
+            asterisk = True
+            omit = False
             selected_cols = cols
-        elif not sample:
-            selected_cols = random.sample(cols, random.randint(1, len(cols)))
-        else:
-            selected_cols = random.sample(cols, sample)
+            expressions = [] 
+            
+        elif flip(prob["cols_p"]): #option 2: only cols
+            asterisk = False
+            omit = False
+            num = sample if sample else random.randint(1, len(cols))
+            selected_cols = random.sample(cols, num)
+            expressions = [f"{table.name}.{c.name}" for c in selected_cols] 
+            
+        elif flip(prob["omit_p"]): #option 3: only literals because omit (SELECT _ ;)
+            asterisk = False
+            omit = True
+            num = sample if sample else random.randint(1, 10)
+            selected_cols = None
+            expressions = [Expression.random(table, no_cols=True, param_prob=prob).sql() for _ in range(num)]
+        
+        else: #option 4 any expression
+            asterisk = False
+            omit = False
+            num = sample if sample else random.randint(1, 10)
+            selected_cols = None
+            if flip(prob["agg_p"]):
+                expressions = [Expression.random(table, agg=True, param_prob=prob).sql() for _ in range(num)]
+                if flip(prob["count_p"]):
+                    expressions.append("COUNT(*)")
+            else:
+                expressions = [Expression.random(table, param_prob=prob).sql() for _ in range(num)]
 
-        select_case = Case.random(table, random.choice(selected_cols), param_prob=prob) if flip(prob["case_p"]) else None
+            
+        # date = flip(prob["date_p"])
+        # select_case = Case.random(table, random.choice(selected_cols), param_prob=prob) if flip(prob["case_p"]) else None
         where = Where.random(table, param_prob=prob, other_tables=other_tables) if flip(prob["where_p"]) else None
-        group_by = random.sample(selected_cols, k=1) if flip(prob["grp_p"]) else None
-        order_by = random.sample(selected_cols, k=1) if flip(prob["ord_p"]) else None
+        group_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["grp_p"]) else None
+        order_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["ord_p"]) else None
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
         offset = random.randint(1,20) if flip(prob["offst_p"]) and limit else None
         
@@ -891,26 +1229,23 @@ class Select(SQLNode):
                 asterisk = True
                 group_by = None
                 order_by = None
-                select_case = None
                 where = None
             
         else:
             from_clause = table
 
         return Select(
-            columns=selected_cols,
+            expressions=expressions,
             asterisk=asterisk,
-            one=one,
             omit=omit,
-            date=date,
+            # date=date,
             from_clause=from_clause,
             where=where,
             group_by=group_by,
             order_by=order_by,
             limit=limit,
             offset=offset,
-            select_case=select_case,
-            table_name=table.name
+            columns=selected_cols
         )
         
 @dataclass
@@ -959,6 +1294,8 @@ class With(SQLNode):
             main_query = fn(table, param_prob=prob)#using the w_table inside these is pretty complicated, so the with here is useless but correct syntax
         
         return With(names=with_names, querys=inner_selects, main_query=main_query, recursive=recursive)
+    
+#----------------------------------------------------------------------------------------------------------------------------------------------------#
 
 @dataclass
 class View(Table):
@@ -975,13 +1312,13 @@ class View(Table):
     
     @staticmethod
     def random(table: Table, other_tables: List[Table] = None, param_prob: Dict[str,float] = None) -> "View":
-        prob = {"tmp_p":0.1, "one_p":0}
+        prob = {"tmp_p":0.1, "one_p":0, "*_p":0.5, "cols_p":1}
         if param_prob is not None:
             prob.update(param_prob)
             
         temp = flip(prob["tmp_p"])
         view_name = random_name("view")
-        select = Select.random(table, other_tables=other_tables, param_prob=prob)
+        select = Select.random(table, other_tables=other_tables, sample=random.randint(1, len(table.columns)), param_prob=prob)
         
         return View(name=view_name, columns=select.columns, select=select, temp=temp)
 
@@ -990,6 +1327,7 @@ class VirtualTable(Table):
     name: str
     columns: List[Column]
     vtype: str
+    viewed: bool = True #with this flag we shouldnt alter virtual table? if thats what u the TODO is saying 
 
     def sql(self) -> str:
         if self.vtype == "dbstat":
@@ -1127,6 +1465,8 @@ class Trigger(SQLNode):
                     statements.append(update.sql()+";")
 
         return Trigger(name=name, temp=temp, nexists=nexists, timing=timing, event=event, cols=cols, table=table, foreach=foreach, when=when, statements=statements)
+  
+#----------------------------------------------------------------------------------------------------------------------------------------------------#  
 
 @dataclass
 class Pragma(SQLNode):
@@ -1153,100 +1493,8 @@ class Pragma(SQLNode):
 
         name, value = random.choice(pragmas)
         return Pragma(name=name, value=value)
-
-@dataclass
-class Expression(SQLNode):
-    """
-    Expression is anything that computes a value, including:
-    Column - col
-    Literal - 'USA', 42, 3.14, NULL	Constant values
-    Math/Logic - col * 1.1, age + 5, x > 10
-    String Ops - LOWER(name), SUBSTR(city, 1, 3)	
-    CASE - CASE WHEN x > 0 THEN 'Yes' ...
-    Aggregate Funcs	- SUM(sales), COUNT(*) - Only in SELECT, HAVING, etc.
-    Cast/Conversion - CAST(age AS TEXT)	
-    Nested SELECT - (SELECT MAX(age) FROM users) - Scalar subquery — returns 1 value
     
-    Put it inside select, where and update
-    """
-    def sql(self) -> str:
-        return NotImplementedError
-    
-    @staticmethod
-    def random(table: "Table", column:Optional["Column"]=None, dtype:Optional[str]=None, param_prob: Dict[str, float]=None):
-        prob = {"lit_p":1, "case_p":0}
-        if param_prob is not None:
-            prob.update(param_prob)
-        
-        weights = [prob["lit_p"], prob["case_p"]]
-        options = [Literal.random, Case.random]
-        fn = random.choices(options, weights=weights, k=1)[0]
-        return fn(table, column=column, dtype=dtype, param_prob=prob)
-
-@dataclass
-class Literal(Expression):
-    def sql(self) -> str:
-        return ""
-    
-    @staticmethod
-    def random(table: "Table", column:Optional["Column"]=None, dtype:Optional[str]="TYPELESS", param_prob: Dict[str, float]=None):
-        prob = {"null_p":0.1, "call_p":0.9}
-        if param_prob is not None:
-            prob.update(param_prob)
-        return random_value(dtype=dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
-    
-@dataclass
-class Case(Expression):
-    conditions:List[str]
-    values:List[str]
-    col:str
-    else_:str
-    dtype: str
-    
-    def sql(self) -> str:
-        query = f"CASE "
-        if self.col:
-            query += f"{self.col} "
-        
-        for conditon, value in zip(self.conditions, self.values):
-            query += f"WHEN {conditon} THEN {value} "
-            
-        if self.else_:
-            query += f"ELSE {self.else_} "
-            
-        query += "END"    
-        return query
-
-    @staticmethod
-    def random(table: "Table", column:Optional["Column"]=None, dtype:Optional[str]=None, param_prob: Dict[str, float] = None) -> "Case":
-        prob = {"case_col" : 0.5}
-        if param_prob is not None:
-            prob.update(param_prob)
-            
-        if column:
-            col = f"{table.name}.{column.name}"
-        else:
-            column = random.choice(table.columns)
-            col = "" if flip(prob["case_col"]) else f"{table.name}.{column.name}"
-        col_dtype = column.dtype
-        
-        if not dtype:
-            dtype = random_type()
-            
-        num_cases = random.randint(1,5)
-        conditions = []
-        values = []
-        for _ in range(num_cases):
-            if col:
-                conditions.append(random_value(col_dtype))
-            else:
-                conditions.append(Comparison.random(table, param_prob=prob))
-                
-            values.append(random_value(dtype))
-        
-        else_ = "" if flip() else random_value(dtype)
-        return Case(conditions, values, col, else_, col_dtype)
-    
+#----------------------------------------------------------------------------------------------------------------------------------------------------#
 
 def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cycle: int = 3, context: Table = None) -> str:
     """
@@ -1291,7 +1539,7 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
             query += insert.sql() + ";\n"
     views = []
     for i in range(cycle):
-        try:
+        # try:
             if flip(prob["table"]) or debug:
                 new_table = Table.random()
                 tables.append(new_table)
@@ -1315,7 +1563,8 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
             if flip(prob["delete"]) or debug:
                 delete = Delete.random(table)
                 query += delete.sql() + ";\n"
-                
+            if not isinstance(table, Table):
+                    print(table)
             if flip(prob["alt_ren"]) or debug and not table.viewed:
                 new_table = AlterTable.random_tbl_rename(table)
                 if new_table:
@@ -1335,6 +1584,8 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                     query += new_table.sql() + ";\n"
             
             if flip(prob["view"]) or debug:
+                if not isinstance(table, Table):
+                    print(table)
                 table.viewed = True #flags table so that we dont modify it
                 view = View.random(table)
                 views.append(view)
@@ -1347,7 +1598,7 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                 trigger = Trigger.random(table)
                 query += trigger.sql() + ";\n"
             
-            table = random.choice(tables + views)
+            table = random.choice(tables)# + views)
             if flip(prob["with"]) or debug:
                 with_ = With.random(table)
                 query += with_.sql() + ";\n"
@@ -1360,11 +1611,11 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
             if flip(prob["pragma"]) or debug:
                 query += Pragma.random().sql() + ";\n"
         
-        except Exception as e:
-            print(e)
-            i-=1
+        # except Exception as e:
+        #     print(e)
+        #     i-=1
 
-    return query, tables, views
+    return query
         
 # if __name__ == "__main__":
 #     print(randomQueryGen(prob, debug=False, cycle=1))
