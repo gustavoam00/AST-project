@@ -1,6 +1,5 @@
 import cma
 import random
-from tqdm import tqdm
 from fuzzing import run_pipeline, FUZZING_PIPELINE
 from config import PROB_TABLE, SEED, TEST_FOLDER
 
@@ -27,15 +26,17 @@ def fuzz_optimize(fuzz_pipeline, prob: dict, popsize: int = 5, num_iterations: i
     cov = 0
     c = (0, 0, 0, 0)
 
-    for i in tqdm(range(num_iterations), desc="CMA-ES Fuzzer Optimization: "):
+    for i in range(num_iterations):
         solutions = es.ask()
         rewards = []
 
-        for sol in solutions:
+        for j, sol in enumerate(solutions):
             prob_dict = vector_to_dict(sol)
+
+            print(f"CMA-ES: {i+1} it {j+1} pop")
             
             cov, c, query, tables, nodes = run_pipeline(0, [], [], [], fuzz_pipeline(prob_dict), repeat=3, save=False)
-            rewards.append(-cov)  # CMA-ES minimizes
+            rewards.append(-cov) 
 
             if cov > best_cov:
                 best_cov = cov
@@ -58,4 +59,5 @@ def fuzz_optimize(fuzz_pipeline, prob: dict, popsize: int = 5, num_iterations: i
         f.write(f"Best Probs: {vector_to_dict(best_params)}")
 
 if __name__ == "__main__":
-    fuzz_optimize(FUZZING_PIPELINE, PROB_TABLE)
+    prob = {k: 0.5 for k in PROB_TABLE}
+    fuzz_optimize(FUZZING_PIPELINE, prob)

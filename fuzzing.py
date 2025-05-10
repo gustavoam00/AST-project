@@ -1,5 +1,5 @@
 from tqdm import tqdm
-from local import coverage_test, reset, LOCAL
+from local import coverage_test, reset
 from metric import coverage_score, get_error
 import generator as gen
 import random
@@ -10,17 +10,17 @@ random.seed(SEED)
 FUZZING_PIPELINE = lambda x: [
     Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False),
     Fuzzing("View", gen.View, gen_table=True, other_tables=True, prob=x),
-    Fuzzing("VirtualTable", gen.VirtualTable, gen_table=True, needs_table=False, need_prob=False),
-    Fuzzing("AlterTable", gen.AlterTable, gen_table=True, no_virt=True, mod_table=True, rem_table=True, need_prob=False), 
-    Fuzzing("Insert", gen.Insert, mod_table=True, prob=x),
-    Fuzzing("Update", gen.Update, mod_table=True, prob=x),
+    Fuzzing("VirtualTable", gen.VirtualTable, gen_table=True, needs_table=False, need_prob=False, threshold=10),
+    Fuzzing("AlterTable", gen.AlterTable, gen_table=True, commit=True, no_virt=True, mod_table=True, rem_table=True, need_prob=False), 
+    Fuzzing("Insert", gen.Insert, mod_table=True, commit=True, threshold=10, prob=x),
+    Fuzzing("Update", gen.Update, mod_table=True, commit=True, threshold=10, prob=x),
     Fuzzing("Select", gen.Select, other_tables=True, threshold=10, prob=x),
     Fuzzing("With", gen.With, threshold=10, prob=x),
-    Fuzzing("Trigger", gen.Trigger, mod_table=True, no_virt=True, prob=x),
-    Fuzzing("Index", gen.Index, no_virt=True, prob=x),
+    Fuzzing("Trigger", gen.Trigger, mod_table=True, commit=True, no_virt=True, prob=x),
+    Fuzzing("Index", gen.Index, no_virt=True, commit=True, prob=x),
     Fuzzing("Pragma", gen.Pragma, needs_table=False, need_prob=False),
-    Fuzzing("Delete", gen.Delete, mod_table=True, prob=x), 
-    Fuzzing("Replace", gen.Replace, mod_table=True, prob=x) 
+    Fuzzing("Delete", gen.Delete, mod_table=True, commit=True, prob=x), 
+    Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, threshold=10, prob=x) 
 ]
 
 def compact_queries(strings: list[str], max_length: int) -> list[str]:
@@ -47,7 +47,7 @@ class Fuzzing:
     """
     def __init__(self, name, gen_fn, threshold=5, max=100, needs_table=True, other_tables=False, 
                  gen_table=False, rem_table=False, need_prob=True, no_virt=False, mod_table=False, 
-                 prob=None):
+                 commit=False, prob=None):
         self.name = name
         self.gen_fn = gen_fn
         self.threshold = threshold
@@ -59,9 +59,10 @@ class Fuzzing:
         self.need_prob = need_prob
         self.no_virt = no_virt
         self.mod_table = mod_table
+        self.commit = commit
         self.prob = prob
 
-    def get_random(self, table: gen.Table, tables: list):
+    def get_random(self, table: gen.Table, tables: list) -> "gen.SQLNode":
         if self.need_prob:
             if self.other_tables:
                 node = self.gen_fn.random(table, other_tables=tables, param_prob=self.prob)
@@ -78,11 +79,15 @@ class Fuzzing:
                 node = self.gen_fn.random()
         return node
 
-    def gen_valid_query(self, query: list, table: gen.Table, tables: list):
+    def gen_valid_query(self, query: list, table: gen.Table, tables: list) -> tuple[int, list[str], gen.SQLNode]:
         for _ in range(self.max):
             node = self.get_random(table, tables)
             if not node: break
-            new_query = node.sql() + ";"
+            if self.commit:
+                new_query = random.choices(["BEGIN; " + node.sql() + ";" + random.choice([" COMMIT;", " ROLLBACK;"]), 
+                                           "EXPLAIN " + node.sql() + ";", node.sql() + ";"], weights=[0.15, 0.15, 0.7], k=1)[0]
+            else:
+                new_query = random.choices(["EXPLAIN " + node.sql() + ";", node.sql() + ";"], weights=[0.2, 0.8], k=1)[0]
             lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
             cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
             if "Error" in msg and "constraint" not in msg:
@@ -95,8 +100,9 @@ class Fuzzing:
             
         return 0, [], None
 
-    def generate(self, cov: int, c, init_query: list, tables: list, nodes: list, find_best: bool = False):
-        pbar = tqdm(desc=f"{self.name} (cov={cov}) (query={len(init_query)})")
+    def generate(self, cov: float, c, init_query: list, tables: list, nodes: list, 
+                 find_best: bool = False):
+        pbar = tqdm(desc=f"{self.name:<15} (cov={cov:7.4f}) (query={len(init_query):03})")
 
         tries = 0
         best_cov = cov
@@ -117,7 +123,7 @@ class Fuzzing:
             if cov_valid == 0:
                 continue
             reset()
-            combined_query = (init_query if find_best else new_query) + valid_query
+            combined_query = (init_query if find_best else new_query) + valid_query + random.choices([["ANALYZE;"], []], weights=[0.05, 0.95], k=1)[0]
             lines_c, branch_c, taken_c, calls_c, msg = coverage_test(combined_query)
             combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
@@ -135,15 +141,16 @@ class Fuzzing:
                         f.write(f"Query: {new_query}\n")
                         for err in get_error(msg):
                             f.write(f"Message: {err}\n")
-
-                if self.rem_table: # alter table
-                    updated_tables.remove(table)
-                if self.gen_table: # view, alter table
-                    updated_tables.append(node)
-                    init_query += valid_query
+                
+                if "ROLLBACK;" not in valid_query[0] and "EXPLAIN" not in valid_query[0]:
+                    if self.rem_table: # alter table
+                        updated_tables.remove(table)
+                    if self.gen_table: # view, alter table
+                        updated_tables.append(node)
+                        init_query += valid_query
 
                 tries = 0
-                pbar.set_description(f"{self.name} (cov={best_cov}) (query={len(combined_query)})")
+                pbar.set_description(f"{self.name:<15} (cov={best_cov:7.4f}) (query={len(combined_query):03})")
             else:
                 tries += 1
 
@@ -152,13 +159,15 @@ class Fuzzing:
         pbar.close()
         return best_cov, best_c, new_query, updated_tables, best_nodes
 
-def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list, repeat: int = 1, save: bool = True):
+def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list, 
+                 repeat: int = 1, save: bool = True):
     cov = init_cov
     query = init_query
     tables = init_tables
     nodes = init_nodes
     c = (0, 0, 0, 0)
 
+    reset()
     for i in range(repeat):
         for stage in fuzz_pipeline:
             cov, c, query, tables, nodes = stage.generate(cov, c, query, tables, nodes)
@@ -177,6 +186,6 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
     return cov, c, query, tables, nodes
 
 if __name__ == "__main__":
-    reset()
-    cov, c, query, tables, nodes = run_pipeline(0, [], [], [], FUZZING_PIPELINE(PROB_TABLE), repeat=5)
+    prob = {k: 0.5 for k in PROB_TABLE}
+    cov, c, query, tables, nodes = run_pipeline(0, [], [], [], FUZZING_PIPELINE(prob), repeat=5)
     print(f"Final Coverage: {cov}")
