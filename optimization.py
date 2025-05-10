@@ -35,7 +35,7 @@ def fuzz_optimize(fuzz_pipeline, prob: dict, popsize: int = 5, num_iterations: i
 
             print(f"CMA-ES: {i+1} it {j+1} pop")
             
-            cov, c, query, tables, nodes = run_pipeline(0, [], [], [], fuzz_pipeline(prob_dict), repeat=3, save=False)
+            cov, c, query, tables, nodes = run_pipeline(0, [], [], [], fuzz_pipeline(prob_dict))
             rewards.append(-cov) 
 
             if cov > best_cov:
