@@ -3,11 +3,12 @@ import logging
 from bugs import BUGS
 from tqdm import tqdm
 import generator as gen
-from metric import get_coverage, metric
+from metric import get_coverage, metric, coverage_score, get_error
 
 logging.disable(logging.ERROR) 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
+LOCAL = False
 SQLITE_VERSIONS = ["sqlite3-3.26.0", "sqlite3-3.39.4"]
 DOCKER_IMAGE = "theosotr/sqlite3-test"
 
@@ -78,11 +79,21 @@ if __name__ == "__main__":
         "INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3);",
         "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;",
     ]
-    FULL = [
-        "CREATE TABLE t0(c0 INT); CREATE INDEX i0 ON t0(1) WHERE c0 NOT NULL; INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3); SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;"
-    ]
+    with open("test/query_test.sql", "r") as f:
+        sql = f.read()
+        FULL = [stmt.strip() + ";" for stmt in sql.split(";") if stmt.strip()]
+
+    lines_c, branch_c, taken_c, calls_c, msg = coverage_test(FULL)
+    combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+
+    print(get_error(msg))
+    
+    if "Error" in msg:
+        with open("test/" + f"error/error.txt", "w") as f:
+            for err in get_error(msg):
+                f.write(f"Message: {err}\n")
     #test(SQL_TEST_QUERY)
-    print(coverage_test(SQL_TEST_QUERY))
+    print()
     #print(metric(SQL_TEST_QUERY))
     assert False
     BUGS[0:34]

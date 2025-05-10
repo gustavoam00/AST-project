@@ -2,6 +2,8 @@ import subprocess
 import logging
 from metric import get_coverage
 
+LOCAL = True
+
 def coverage_test(sql_query):
     """
     Local version of coverage_test (same output format)
@@ -52,3 +54,6 @@ def reset():
     except subprocess.CalledProcessError as e:
         logging.error(f"Error running query: {e.stderr}")
         return (0, str(e.stderr))
+    
+if __name__ == "__main__":
+    reset()

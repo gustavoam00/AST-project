@@ -32,41 +32,6 @@ def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.5, 1.0)):
     ) / 2.0
     
 def get_error(result: str) -> str:
-    # Error: Constraint Failed.
-    # Error: No such table
-    # Error: No such Column
-    # Error: Syntax error near unexpected token
-    # Error: Attempt to Write a Read-Only Database
-    # Error: Foreign Key Constraint Failed.
-    # Error: Out of Memory
-    # Error: Column Index Out of Range
-    # Error: Abort due to constraint violation
-    # Error: Database Schema has Changed
-    # Error: misuse of aggregate function
-    # Error: Type Mismatch in Expression
-    # Error: Cannot start a transaction within a transaction
-    # Error: Recursive CTE Query Limit Exceeded
-    # Error: Virtual Table Mismatch
-    # Error: Attempt to Bind Null Value
-    # Error: NULL value in NOT NULL column
-    # Error: Division by Zero
-    # Error: PRIMARY KEY must be unique
-    # Error: Unindexed Query Detected
-    # Error: Triggers are Disabled
-    # Error: Parameter Count Mismatch
-    # Error: Invalid Function in Query
-    # Error: Cannot Add Column in Virtual Table 
-    # Error: Duplicate Column Name in Table 
-    # Error: Cannot Drop a Referenced Table
-    # Error: Infinite Loop Detected in Trigger Execution 
-    # Error: Subquery Returns Multiple Rows
-    # Error: ROWID Value is NULL
-    # Error: Invalid Use of PRAGMA Statement 
-    # Error: Failed to Commit Transaction
-    # Error: Cannot Use JSON Functions Without Data
-    # Error: Table Name Already Exists 
-    # Error: CTE Expression Exceeds Allowed Recursion Depth 
-    # Error: Invalid Value for PRAGMA Configuration 
     return re.findall(r"(Error:.*)", result)
 
 if __name__ == "__main__":

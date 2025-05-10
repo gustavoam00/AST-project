@@ -10,17 +10,17 @@ random.seed(SEED)
 FUZZING_PIPELINE = lambda x: [
     Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False),
     Fuzzing("View", gen.View, gen_table=True, other_tables=True, prob=x),
-    Fuzzing("VirtualTable", gen.VirtualTable, gen_table=True, needs_table=False, need_prob=False),
-    Fuzzing("AlterTable", gen.AlterTable, gen_table=True, no_virt=True, mod_table=True, rem_table=True, need_prob=False), 
-    Fuzzing("Insert", gen.Insert, mod_table=True, prob=x),
-    Fuzzing("Update", gen.Update, mod_table=True, prob=x, max=5),
+    Fuzzing("VirtualTable", gen.VirtualTable, gen_table=True, needs_table=False, need_prob=False, threshold=10),
+    Fuzzing("AlterTable", gen.AlterTable, gen_table=True, commit=True, no_virt=True, mod_table=True, rem_table=True, need_prob=False), 
+    Fuzzing("Insert", gen.Insert, mod_table=True, commit=True, threshold=10, prob=x),
+    Fuzzing("Update", gen.Update, mod_table=True, commit=True, threshold=10, prob=x),
     Fuzzing("Select", gen.Select, other_tables=True, threshold=10, prob=x),
     Fuzzing("With", gen.With, threshold=10, prob=x),
-    Fuzzing("Trigger", gen.Trigger, mod_table=True, no_virt=True, prob=x),
-    Fuzzing("Index", gen.Index, no_virt=True, prob=x),
+    Fuzzing("Trigger", gen.Trigger, mod_table=True, commit=True, no_virt=True, prob=x),
+    Fuzzing("Index", gen.Index, no_virt=True, commit=True, prob=x),
     Fuzzing("Pragma", gen.Pragma, needs_table=False, need_prob=False),
-    Fuzzing("Delete", gen.Delete, mod_table=True, prob=x), 
-    Fuzzing("Replace", gen.Replace, mod_table=True, prob=x) 
+    Fuzzing("Delete", gen.Delete, mod_table=True, commit=True, prob=x), 
+    Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, threshold=10, prob=x) 
 ]
 
 def compact_queries(strings: list[str], max_length: int) -> list[str]:
@@ -47,7 +47,7 @@ class Fuzzing:
     """
     def __init__(self, name, gen_fn, threshold=5, max=100, needs_table=True, other_tables=False, 
                  gen_table=False, rem_table=False, need_prob=True, no_virt=False, mod_table=False, 
-                 no_dbstat_or_fts4=False, prob=None):
+                 commit=False, prob=None):
         self.name = name
         self.gen_fn = gen_fn
         self.threshold = threshold
@@ -59,10 +59,10 @@ class Fuzzing:
         self.need_prob = need_prob
         self.no_virt = no_virt
         self.mod_table = mod_table
-        self.no_dbstat_or_fts4 = no_dbstat_or_fts4
+        self.commit = commit
         self.prob = prob
 
-    def get_random(self, table: gen.Table, tables: list):
+    def get_random(self, table: gen.Table, tables: list) -> "gen.SQLNode":
         if self.need_prob:
             if self.other_tables:
                 node = self.gen_fn.random(table, other_tables=tables, param_prob=self.prob)
@@ -79,25 +79,30 @@ class Fuzzing:
                 node = self.gen_fn.random()
         return node
 
-    def gen_valid_query(self, query: list, table: gen.Table, tables: list):
+    def gen_valid_query(self, query: list, table: gen.Table, tables: list) -> tuple[int, list[str], gen.SQLNode]:
         for _ in range(self.max):
             node = self.get_random(table, tables)
-            if node:
-                new_query = node.sql() + ";"
-                lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
-                cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
-                if "Error" in msg:
-                    with open(TEST_FOLDER + "error.txt", "a") as f:
-                        f.write(f"Query: {query + [new_query]}\n")
-                        for err in get_error(msg):
-                            f.write(f"Message: {err}\n")
-                if cov_valid > 0:
-                    return cov_valid, [new_query], node
+            if not node: break
+            if self.commit:
+                new_query = random.choices(["BEGIN; " + node.sql() + ";" + random.choice([" COMMIT;", " ROLLBACK;"]), 
+                                           "EXPLAIN " + node.sql() + ";", node.sql() + ";"], weights=[0.15, 0.15, 0.7], k=1)[0]
+            else:
+                new_query = random.choices(["EXPLAIN " + node.sql() + ";", node.sql() + ";"], weights=[0.2, 0.8], k=1)[0]
+            lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
+            cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
+            if "Error" in msg and "constraint" not in msg:
+                with open(TEST_FOLDER + f"error/error_valid_{cov_valid}_{random.randint(0, 10000)}.txt", "w") as f:
+                    f.write(f"Query: {query + [new_query]}\n")
+                    for err in get_error(msg):
+                        f.write(f"Message: {err}\n")
+            if cov_valid > 0:
+                return cov_valid, [new_query], node
             
         return 0, [], None
 
-    def generate(self, cov: int, c, init_query: list, tables: list, nodes: list, find_best: bool = False):
-        pbar = tqdm(desc=f"{self.name} (cov={cov}) (query={len(init_query)})")
+    def generate(self, cov: float, c, init_query: list, tables: list, nodes: list, 
+                 find_best: bool = False):
+        pbar = tqdm(desc=f"{self.name:<15} (cov={cov:7.4f}) (query={len(init_query):03})")
 
         tries = 0
         best_cov = cov
@@ -109,21 +114,18 @@ class Fuzzing:
         while tries < self.threshold:
             if tables:
                 table = random.choice(updated_tables)
-                while ((self.mod_table and isinstance(table, gen.View)) or 
+                while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
                        (self.no_virt and isinstance(table, gen.VirtualTable))):
                     table = random.choice(updated_tables)
                 cov_valid, valid_query, node = self.gen_valid_query(init_query, table, updated_tables)
             else:
                 cov_valid, valid_query, node = self.gen_valid_query(init_query, None, updated_tables)
-            combined_query = (init_query if find_best else new_query) + valid_query
+            if cov_valid == 0:
+                continue
+            reset()
+            combined_query = (init_query if find_best else new_query) + valid_query + random.choices([["ANALYZE;"], []], weights=[0.05, 0.95], k=1)[0]
             lines_c, branch_c, taken_c, calls_c, msg = coverage_test(combined_query)
             combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
-
-            if "Error" in msg:
-                with open(TEST_FOLDER + "error.txt", "a") as f:
-                    f.write(f"Query: {query + [new_query]}\n")
-                    for err in get_error(msg):
-                        f.write(f"Message: {err}\n")
 
             if combined_cov > best_cov:
                 best_cov = combined_cov
@@ -131,53 +133,59 @@ class Fuzzing:
                 new_query = combined_query
                 best_nodes.append(node)
 
-                if self.rem_table: # alter table
-                    updated_tables.remove(table) #= list(filter(lambda x: x.name != table.name, updated_tables))
-                if self.gen_table: # view, alter table
-                    updated_tables.append(node)
-                    init_query += valid_query
+                with open(TEST_FOLDER + f"query_test.sql", "w") as f:
+                    f.write("\n".join(new_query))
+
+                if "Error" in msg and "constraint" not in msg:
+                    with open(TEST_FOLDER + f"error/error_{cov}_{random.randint(0, 10000)}.txt", "w") as f:
+                        f.write(f"Query: {new_query}\n")
+                        for err in get_error(msg):
+                            f.write(f"Message: {err}\n")
+                
+                if "ROLLBACK;" not in valid_query[0] and "EXPLAIN" not in valid_query[0]:
+                    if self.rem_table: # alter table
+                        updated_tables.remove(table)
+                    if self.gen_table: # view, alter table
+                        updated_tables.append(node)
+                        init_query += valid_query
 
                 tries = 0
-                pbar.set_description(f"{self.name} (cov={best_cov}) (query={len(combined_query)})")
+                pbar.set_description(f"{self.name:<15} (cov={best_cov:7.4f}) (query={len(combined_query):03})")
             else:
                 tries += 1
 
             pbar.update(1)
 
-            #it_per_sec = pbar.format_dict.get('rate')
-    
-            #if it_per_sec and it_per_sec < 0.3:
-                #print(f"Warning: Slow iteration detected ({it_per_sec:.2f}it/s)\n")
-                #print(f"Query: {new_query}")
-            
-
         pbar.close()
         return best_cov, best_c, new_query, updated_tables, best_nodes
 
-def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list, repeat: int = 1):
+def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list, 
+                 repeat: int = 1, save: bool = True):
     cov = init_cov
     query = init_query
     tables = init_tables
     nodes = init_nodes
     c = (0, 0, 0, 0)
 
+    reset()
     for i in range(repeat):
         for stage in fuzz_pipeline:
             cov, c, query, tables, nodes = stage.generate(cov, c, query, tables, nodes)
         random.shuffle(fuzz_pipeline)
         
-        with open(TEST_FOLDER + f"save_{cov}.txt", "w") as f:
-            f.write(f"Best Coverage: {cov}, {c}\n")
-            f.write(f"Best Query: {query}\n")
-            f.write(f"Tables: {tables}\n")
-        with open(TEST_FOLDER + f"query_{cov}.sql", "w") as f:
-            f.write("\n".join(query))
-        with open(TEST_FOLDER + "error.txt", "w") as f:
-            f.write("") # reset error.txt
+        if save:
+            with open(TEST_FOLDER + f"save_{cov}.txt", "w") as f:
+                f.write(f"Best Coverage: {cov}, {c}\n")
+                f.write(f"Best Query: {query}\n")
+                f.write(f"Tables: {tables}\n")
+            with open(TEST_FOLDER + f"query_{cov}.sql", "w") as f:
+                f.write("\n".join(query))
+            with open(TEST_FOLDER + "error.txt", "w") as f:
+                f.write("") # reset error.txt
 
-    return cov, query, tables, nodes
+    return cov, c, query, tables, nodes
 
 if __name__ == "__main__":
-    reset()
-    cov, query, tables, nodes = run_pipeline(0, [], [], [], FUZZING_PIPELINE(PROB_TABLE), repeat=5)
+    prob = {k: 0.5 for k in PROB_TABLE}
+    cov, c, query, tables, nodes = run_pipeline(0, [], [], [], FUZZING_PIPELINE(prob), repeat=5)
     print(f"Final Coverage: {cov}")
