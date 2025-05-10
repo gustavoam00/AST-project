@@ -73,7 +73,7 @@ if __name__ == "__main__":
         "update":  0.2,
         "replace": 0.2,
         "delete":  0.2,
-        "pragma":  0.2,
+        "pragma":  0,
         
         "time_p":  0,
         "std_p": 0,
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         "agg2_p": 1,
     }
 
-
+    
     for _ in tqdm(range(100)):
         query = gen.randomQueryGen(prob, debug=False, cycle=2)
         error = run_query([query], SQLITE_VERSIONS[0])
