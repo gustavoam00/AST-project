@@ -837,7 +837,7 @@ class AlterTable(Table):
         
     @staticmethod
     def random(table: "Table") -> "AlterTable":
-        if table.viewed or isinstance(table, VirtualTable): #modifying tbales breaks views, cannot modify vtables
+        if table.viewed:  # modifying tbales breaks views
             return None
         
         fn = random.choice([AlterTable.random_add, AlterTable.random_col_rename, AlterTable.random_tbl_rename])
@@ -1221,6 +1221,7 @@ class Select(SQLNode):
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
         offset = random.randint(1,20) if flip(prob["offst_p"]) and limit else None
         
+        # TODO: VirtualTable JOIN is very slow
         if other_tables and flip(prob["join_p"]):
             left = table
             right = random.choice(other_tables)
@@ -1327,7 +1328,7 @@ class VirtualTable(Table):
     name: str
     columns: List[Column]
     vtype: str
-    viewed: bool = True #with this flag we shouldnt alter virtual table? if thats what u the TODO is saying 
+    viewed: bool = True 
 
     def sql(self) -> str:
         if self.vtype == "dbstat":
@@ -1335,22 +1336,21 @@ class VirtualTable(Table):
         else:
             return f"CREATE VIRTUAL TABLE {self.name} USING {self.vtype}({', '.join([c.name for c in self.columns])})"
     
-    '''
-    TODO: NO ALTER TABLE for VIRTUAL TABLES
-    fts4 supports: no foreign keys, otherwise everything is supported
-    rtree supports: no foreign keys, otherwise everything is supported
-    dbstat supports: read_only (no insert, update, delete), no trigger allowed
-    '''
+    # TODO: VirtualTable sometimes gets Trigger stuck?
     def random() -> "VirtualTable":
         vtype = random.choice(VIRTUAL["types"])
         col_names = VIRTUAL[vtype]
-        columns = []
-        for c in col_names:
-            keys = list(c)
-            if len(keys) == 1:
-                columns.append(Column(name=keys[0], dtype=c[keys[0]]))
-            else:
-                columns.append(Column(name=keys[0], dtype=c[keys[0]], primary_key=True))
+        if vtype == "fts4": 
+            cols = random.randint(2, 6)
+            columns = [Column(name=random_name("fts_col"), dtype="TEXT") for _ in range(cols)]
+        else:
+            columns = []
+            for c in col_names:
+                keys = list(c)
+                if len(keys) == 1:
+                    columns.append(Column(name=keys[0], dtype=c[keys[0]]))
+                else:
+                    columns.append(Column(name=keys[0], dtype=c[keys[0]], primary_key=True))
         return VirtualTable(name=random_name(vtype), columns=columns, vtype=vtype)
 
 
@@ -1478,7 +1478,10 @@ class Pragma(SQLNode):
     value: str
 
     def sql(self) -> str:
-        return f"PRAGMA {self.name} = {self.value}"
+        if self.value:
+            return f"PRAGMA {self.name} = {self.value}"
+        else:
+            return f"PRAGMA {self.name}"
 
     @staticmethod
     def random() -> "Pragma":
@@ -1489,6 +1492,14 @@ class Pragma(SQLNode):
             ("synchronous", random.choice(["0", "1", "2"])),  # OFF, NORMAL, FULL
             ("temp_store", random.choice(["DEFAULT", "FILE", "MEMORY"])),
             ("locking_mode", random.choice(["NORMAL", "EXCLUSIVE"])),
+            ("mmap_size", str(random.randint(10000000, 200000000))),
+            ("analysis_limit", str(random.randint(1, 20))),
+            ("automatic_index", random.choice(["True", "False"])),
+            ("busy_timeout", str(random.randint(1000, 10000))),
+            ("collation_list", ""),
+            ("database_list", ""),
+            ("encoding", random.choice(["", "UTF-8", "UTF-16", "UTF-16le", "UTF-16be"])),
+            ("function_list", "")
         ]
 
         name, value = random.choice(pragmas)

@@ -11,13 +11,13 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False),
     Fuzzing("View", gen.View, gen_table=True, other_tables=True, prob=x),
     Fuzzing("VirtualTable", gen.VirtualTable, gen_table=True, needs_table=False, need_prob=False),
-    Fuzzing("AlterTable", gen.AlterTable, gen_table=True, allow_virt=False, mod_table=True, rem_table=True, need_prob=False), 
+    Fuzzing("AlterTable", gen.AlterTable, gen_table=True, no_virt=True, mod_table=True, rem_table=True, need_prob=False), 
     Fuzzing("Insert", gen.Insert, mod_table=True, prob=x),
     Fuzzing("Update", gen.Update, mod_table=True, prob=x, max=5),
     Fuzzing("Select", gen.Select, other_tables=True, threshold=10, prob=x),
     Fuzzing("With", gen.With, threshold=10, prob=x),
-    Fuzzing("Trigger", gen.Trigger, mod_table=True, prob=x),
-    Fuzzing("Index", gen.Index, prob=x),
+    Fuzzing("Trigger", gen.Trigger, mod_table=True, no_virt=True, prob=x),
+    Fuzzing("Index", gen.Index, no_virt=True, prob=x),
     Fuzzing("Pragma", gen.Pragma, needs_table=False, need_prob=False),
     Fuzzing("Delete", gen.Delete, mod_table=True, prob=x), 
     Fuzzing("Replace", gen.Replace, mod_table=True, prob=x) 
@@ -46,7 +46,8 @@ class Fuzzing:
     Fuzzing pipeline 
     """
     def __init__(self, name, gen_fn, threshold=5, max=100, needs_table=True, other_tables=False, 
-                 gen_table=False, rem_table=False, need_prob=True, allow_virt=True, mod_table=False, prob=None):
+                 gen_table=False, rem_table=False, need_prob=True, no_virt=False, mod_table=False, 
+                 no_dbstat_or_fts4=False, prob=None):
         self.name = name
         self.gen_fn = gen_fn
         self.threshold = threshold
@@ -56,8 +57,9 @@ class Fuzzing:
         self.gen_table = gen_table
         self.rem_table = rem_table
         self.need_prob = need_prob
-        self.allow_virt = allow_virt
+        self.no_virt = no_virt
         self.mod_table = mod_table
+        self.no_dbstat_or_fts4 = no_dbstat_or_fts4
         self.prob = prob
 
     def get_random(self, table: gen.Table, tables: list):
@@ -80,16 +82,17 @@ class Fuzzing:
     def gen_valid_query(self, query: list, table: gen.Table, tables: list):
         for _ in range(self.max):
             node = self.get_random(table, tables)
-            new_query = node.sql() + ";"
-            lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
-            cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
-            if "Error" in msg:
-                with open(TEST_FOLDER + "error.txt", "a") as f:
-                    f.write(f"Query: {query + [new_query]}\n")
-                    for err in get_error(msg):
-                        f.write(f"Message: {err}\n")
-            if cov_valid > 0:
-                return cov_valid, [new_query], node
+            if node:
+                new_query = node.sql() + ";"
+                lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
+                cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
+                if "Error" in msg:
+                    with open(TEST_FOLDER + "error.txt", "a") as f:
+                        f.write(f"Query: {query + [new_query]}\n")
+                        for err in get_error(msg):
+                            f.write(f"Message: {err}\n")
+                if cov_valid > 0:
+                    return cov_valid, [new_query], node
             
         return 0, [], None
 
@@ -106,14 +109,21 @@ class Fuzzing:
         while tries < self.threshold:
             if tables:
                 table = random.choice(updated_tables)
-                while (self.mod_table and isinstance(table, gen.View)) or (not self.allow_virt and isinstance(table, gen.VirtualTable)):
+                while ((self.mod_table and isinstance(table, gen.View)) or 
+                       (self.no_virt and isinstance(table, gen.VirtualTable))):
                     table = random.choice(updated_tables)
                 cov_valid, valid_query, node = self.gen_valid_query(init_query, table, updated_tables)
             else:
                 cov_valid, valid_query, node = self.gen_valid_query(init_query, None, updated_tables)
             combined_query = (init_query if find_best else new_query) + valid_query
-            lines_c, branch_c, taken_c, calls_c, _ = coverage_test(combined_query)
+            lines_c, branch_c, taken_c, calls_c, msg = coverage_test(combined_query)
             combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+
+            if "Error" in msg:
+                with open(TEST_FOLDER + "error.txt", "a") as f:
+                    f.write(f"Query: {query + [new_query]}\n")
+                    for err in get_error(msg):
+                        f.write(f"Message: {err}\n")
 
             if combined_cov > best_cov:
                 best_cov = combined_cov
@@ -133,6 +143,13 @@ class Fuzzing:
                 tries += 1
 
             pbar.update(1)
+
+            #it_per_sec = pbar.format_dict.get('rate')
+    
+            #if it_per_sec and it_per_sec < 0.3:
+                #print(f"Warning: Slow iteration detected ({it_per_sec:.2f}it/s)\n")
+                #print(f"Query: {new_query}")
+            
 
         pbar.close()
         return best_cov, best_c, new_query, updated_tables, best_nodes
@@ -159,26 +176,6 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
             f.write("") # reset error.txt
 
     return cov, query, tables, nodes
-
-def delta_debug(query_seq: list, baseline_coverage, coverage_test):
-    n = 2
-    while len(query_seq) >= 2:
-        chunk_size = len(query_seq) // n
-        chunks = [query_seq[i:i+chunk_size] for i in range(0, len(query_seq), chunk_size)]
-
-        for i in range(len(chunks)):
-            trial = [query for j, chunk in enumerate(chunks) if j != i for query in chunk]
-            trial_cov, _ = coverage_test(trial)
-            if trial_cov > baseline_coverage:
-                query_seq = trial
-                n = max(n - 1, 2)
-                break
-        else:
-            if n == len(query_seq):
-                break
-            n = min(n * 2, len(query_seq))
-
-    return query_seq
 
 if __name__ == "__main__":
     reset()

@@ -49,7 +49,7 @@ BEGIN; COMMIT; ROLLBACK;
 .exit
 
 # 100MB, maybe for unix file-system?
-PRAGMA mmap_size = 104857600;
+PRAGMA mmap_size = 104857600; DONE
 
 # BLOB: maybe but don't really need it (only small increase)
 CREATE TABLE t(x BLOB);
@@ -99,3 +99,103 @@ SELECT typeof(NULL);
 
 
 What about dropping tables, views, and columns?
+
+functions from PRAGMA function_list;
+group_concat|1
+julianday|1
+ntile|1
+nullif|1
+sqlite_compileoption_get|1
+current_timestamp|1
+sqlite_compileoption_used|1
+sum|1
+quote|1
+printf|1
+likelihood|1
+last_value|1
+rank|1
+round|1
+rtrim|1
+nth_value|1
+random|1
+trim|1
+time|1
+total|1
+substr|1
+replace|1
+upper|1
+typeof|1
+load_extension|1
+avg|1
+abs|1
+strftime|1
+unknown|1
+randomblob|1
+unicode|1
+percent_rank|1
+row_number|1
+last_insert_rowid|1
+sqlite_log|1
+unlikely|1
+char|1
+count|1
+date|1
+sqlite_offset|1
+total_changes|1
+changes|1
+sqlite_version|1
+coalesce|1
+glob|1
+zeroblob|1
+hex|1
+sqlite_source_id|1
+datetime|1
+cume_dist|1
+instr|1
+dense_rank|1
+ifnull|1
+current_date|1
+current_time|1
+lag|1
+like|1
+max|1
+min|1
+lead|1
+lower|1
+ltrim|1
+first_value|1
+length|1
+likely|1
+shell_add_schema|0
+lsmode|0
+readfile|0
+shell_putsnl|0
+json_replace|0
+writefile|0
+json_type|0
+json_remove|0
+json_quote|0
+json_group_object|0
+json_extract|0
+json_group_array|0
+json_array|0
+edit|0
+json|0
+json_set|0
+json_patch|0
+match|0
+json_insert|0
+fts3_tokenizer|0
+snippet|0
+offsets|0
+shell_module_schema|0
+json_valid|0
+matchinfo|0
+json_array_length|0
+optimize|0
+sha3|0
+rtreedepth|0
+sha3_query|0
+json_object|0
+rtreenode|0
+rtreecheck|0
