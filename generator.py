@@ -1224,7 +1224,7 @@ class Insert(SQLNode):
         full = flip(prob["full_p"]) and not non_unique
         
         if default:
-           return Insert(table=table.name, columns=[], values=[], conflict_action=conflict_action, default=True, full=True)
+           return Insert(table=table, columns=[], values=[], conflict_action=conflict_action, default=True, full=True)
         
         cols = []
         num_rows = random.randint(1,5)
