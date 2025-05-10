@@ -1221,7 +1221,6 @@ class Select(SQLNode):
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
         offset = random.randint(1,20) if flip(prob["offst_p"]) and limit else None
         
-        # TODO: VirtualTable JOIN is very slow
         if other_tables and flip(prob["join_p"]):
             left = table
             right = random.choice(other_tables)
@@ -1336,7 +1335,6 @@ class VirtualTable(Table):
         else:
             return f"CREATE VIRTUAL TABLE {self.name} USING {self.vtype}({', '.join([c.name for c in self.columns])})"
     
-    # TODO: VirtualTable sometimes gets Trigger stuck?
     def random() -> "VirtualTable":
         vtype = random.choice(VIRTUAL["types"])
         col_names = VIRTUAL[vtype]
@@ -1487,12 +1485,12 @@ class Pragma(SQLNode):
     def random() -> "Pragma":
         pragmas = [
             ("foreign_keys", random.choice(["ON", "OFF"])),
-            ("cache_size", str(random.randint(1000, 5000))),
+            ("cache_size", str(random.randint(5000, 100000))),
             ("journal_mode", random.choice(["DELETE", "TRUNCATE", "PERSIST", "WAL", "MEMORY"])),
             ("synchronous", random.choice(["0", "1", "2"])),  # OFF, NORMAL, FULL
             ("temp_store", random.choice(["DEFAULT", "FILE", "MEMORY"])),
             ("locking_mode", random.choice(["NORMAL", "EXCLUSIVE"])),
-            ("mmap_size", str(random.randint(10000000, 200000000))),
+            ("mmap_size", str(random.randint(10000000, 100000000))),
             ("analysis_limit", str(random.randint(1, 20))),
             ("automatic_index", random.choice(["True", "False"])),
             ("busy_timeout", str(random.randint(1000, 10000))),

@@ -1,5 +1,5 @@
 from tqdm import tqdm
-from local import coverage_test, reset
+from local import coverage_test, reset, LOCAL
 from metric import coverage_score, get_error
 import generator as gen
 import random
@@ -13,7 +13,7 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("VirtualTable", gen.VirtualTable, gen_table=True, needs_table=False, need_prob=False),
     Fuzzing("AlterTable", gen.AlterTable, gen_table=True, no_virt=True, mod_table=True, rem_table=True, need_prob=False), 
     Fuzzing("Insert", gen.Insert, mod_table=True, prob=x),
-    Fuzzing("Update", gen.Update, mod_table=True, prob=x, max=5),
+    Fuzzing("Update", gen.Update, mod_table=True, prob=x),
     Fuzzing("Select", gen.Select, other_tables=True, threshold=10, prob=x),
     Fuzzing("With", gen.With, threshold=10, prob=x),
     Fuzzing("Trigger", gen.Trigger, mod_table=True, no_virt=True, prob=x),
@@ -47,7 +47,7 @@ class Fuzzing:
     """
     def __init__(self, name, gen_fn, threshold=5, max=100, needs_table=True, other_tables=False, 
                  gen_table=False, rem_table=False, need_prob=True, no_virt=False, mod_table=False, 
-                 no_dbstat_or_fts4=False, prob=None):
+                 prob=None):
         self.name = name
         self.gen_fn = gen_fn
         self.threshold = threshold
@@ -59,7 +59,6 @@ class Fuzzing:
         self.need_prob = need_prob
         self.no_virt = no_virt
         self.mod_table = mod_table
-        self.no_dbstat_or_fts4 = no_dbstat_or_fts4
         self.prob = prob
 
     def get_random(self, table: gen.Table, tables: list):
@@ -82,17 +81,17 @@ class Fuzzing:
     def gen_valid_query(self, query: list, table: gen.Table, tables: list):
         for _ in range(self.max):
             node = self.get_random(table, tables)
-            if node:
-                new_query = node.sql() + ";"
-                lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
-                cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
-                if "Error" in msg:
-                    with open(TEST_FOLDER + "error.txt", "a") as f:
-                        f.write(f"Query: {query + [new_query]}\n")
-                        for err in get_error(msg):
-                            f.write(f"Message: {err}\n")
-                if cov_valid > 0:
-                    return cov_valid, [new_query], node
+            if not node: break
+            new_query = node.sql() + ";"
+            lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query])
+            cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
+            if "Error" in msg and "constraint" not in msg:
+                with open(TEST_FOLDER + f"error/error_valid_{cov_valid}_{random.randint(0, 10000)}.txt", "w") as f:
+                    f.write(f"Query: {query + [new_query]}\n")
+                    for err in get_error(msg):
+                        f.write(f"Message: {err}\n")
+            if cov_valid > 0:
+                return cov_valid, [new_query], node
             
         return 0, [], None
 
@@ -109,27 +108,33 @@ class Fuzzing:
         while tries < self.threshold:
             if tables:
                 table = random.choice(updated_tables)
-                while ((self.mod_table and isinstance(table, gen.View)) or 
+                while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
                        (self.no_virt and isinstance(table, gen.VirtualTable))):
                     table = random.choice(updated_tables)
                 cov_valid, valid_query, node = self.gen_valid_query(init_query, table, updated_tables)
             else:
                 cov_valid, valid_query, node = self.gen_valid_query(init_query, None, updated_tables)
+            if cov_valid == 0:
+                continue
+            reset()
             combined_query = (init_query if find_best else new_query) + valid_query
             lines_c, branch_c, taken_c, calls_c, msg = coverage_test(combined_query)
             combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
-
-            if "Error" in msg:
-                with open(TEST_FOLDER + "error.txt", "a") as f:
-                    f.write(f"Query: {query + [new_query]}\n")
-                    for err in get_error(msg):
-                        f.write(f"Message: {err}\n")
 
             if combined_cov > best_cov:
                 best_cov = combined_cov
                 best_c = (lines_c, branch_c, taken_c, calls_c)
                 new_query = combined_query
                 best_nodes.append(node)
+
+                with open(TEST_FOLDER + f"query_test.sql", "w") as f:
+                    f.write("\n".join(new_query))
+
+                if "Error" in msg and "constraint" not in msg:
+                    with open(TEST_FOLDER + f"error/error_{cov}_{random.randint(0, 10000)}.txt", "w") as f:
+                        f.write(f"Query: {new_query}\n")
+                        for err in get_error(msg):
+                            f.write(f"Message: {err}\n")
 
                 if self.rem_table: # alter table
                     updated_tables.remove(table) #= list(filter(lambda x: x.name != table.name, updated_tables))
