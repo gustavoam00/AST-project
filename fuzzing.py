@@ -82,8 +82,10 @@ class Fuzzing:
 
     def gen_valid_query(self, query: list, table: gen.Table, tables: list) -> tuple[int, list[str], gen.SQLNode]:
         for _ in range(self.max):
+            mutate = False
             if self.corpus and random.random() < 0.3:
                 node = self.mutate()
+                mutate = True
             else:
                 node = self.get_random(table, tables)
             if not node: continue
@@ -100,9 +102,9 @@ class Fuzzing:
                     for err in get_error(msg):
                         f.write(f"Message: {err}\n")
             if cov_valid > 0:
-                return cov_valid, [new_query], node
+                return cov_valid, [new_query], node, mutate
             
-        return 0, [], None
+        return 0, [], None, False
 
     def generate(self, cov: float, c, init_query: list, tables: list, nodes: list, 
                  find_best: bool = False):
@@ -121,9 +123,9 @@ class Fuzzing:
                 while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
                        (self.no_virt and isinstance(table, gen.VirtualTable))):
                     table = random.choice(updated_tables)
-                cov_valid, valid_query, node = self.gen_valid_query(init_query, table, updated_tables)
+                cov_valid, valid_query, node, mut = self.gen_valid_query(init_query, table, updated_tables)
             else:
-                cov_valid, valid_query, node = self.gen_valid_query(init_query, None, updated_tables)
+                cov_valid, valid_query, node, mut = self.gen_valid_query(init_query, None, updated_tables)
             if cov_valid == 0:
                 continue
             reset()
@@ -146,7 +148,7 @@ class Fuzzing:
                         for err in get_error(msg):
                             f.write(f"Message: {err}\n")
                 
-                if "ROLLBACK;" not in valid_query[0] and "EXPLAIN" not in valid_query[0]:
+                if "ROLLBACK;" not in valid_query[0] and "EXPLAIN" not in valid_query[0] and not mut:
                     if self.rem_table: # alter table
                         updated_tables.remove(table)
                     if self.gen_table: # view, alter table
