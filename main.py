@@ -76,8 +76,6 @@ if __name__ == "__main__":
         "pragma":   0.2,
         "control":  0.05,
         "optimize": 0.01,
-        
-        "alias_p":  1
     }
 
     

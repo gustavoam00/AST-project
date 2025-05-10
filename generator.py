@@ -369,7 +369,7 @@ class Comparison(Predicate):
         op = random.choice(OPS[dtype])
         val = Expression.random(dtype=dtype, no_cols=True, param_prob=prob).sql()
         # val = random_value(dtype, prob["comp_nullc"], prob["comp_callc"])
-        return Comparison(col.name, op, val, table_name)
+        return Comparison(col, op, val, table_name)
     
     def mutate(self) -> "Comparison":
         comparison = copy.deepcopy(self)
@@ -526,7 +526,7 @@ class InList(Predicate):
         count = random.randint(2, 5)
         values = [Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql() for _ in range(count)]
         # values = [random_value(col.dtype, prob["inli_nullc"], prob["inli_callc"]) for _ in range(count)]
-        return InList(col.name, values, table_name)
+        return InList(col, values, table_name)
     
     def mutate(self) -> "InList":
         inlist = copy.deepcopy(self)
@@ -1415,7 +1415,7 @@ class Replace(SQLNode):
     full: bool
 
     def sql(self) -> str:
-        query = f"REPLACE INTO {self.table} "
+        query = f"REPLACE INTO {self.table.name} "
             
         cols = ", ".join([c.name for c in self.columns])
         vals_list = []
@@ -1625,7 +1625,7 @@ class Select(SQLNode):
 
     @staticmethod
     def random(table: Table, sample: int = None, other_tables: list[Table] = None, param_cols: List[Column] = None, param_prob:Dict[str, float] = None) -> "Select":
-        prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.05, "offst_p":0.5, "*_p":0.2, "omit_p":0.1, "one_p":0.05, "date_p":0.1, "cols_p":0.5, "agg_p":0.1, "count_p":0.3}
+        prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.05, "offst_p":0.5, "*_p":0.2, "omit_p":0.1, "one_p":0.05, "date_p":0.1, "cols_p":0.5, "agg_p":0.1, "count_p":0.3, "alias_p": 0.05}
         if param_prob is not None:
             prob.update(param_prob)
         
