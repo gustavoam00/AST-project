@@ -1624,7 +1624,7 @@ class Select(SQLNode):
         return base
 
     @staticmethod
-    def random(table: Table, sample: int = None, other_tables: list[Table] = None, param_cols: List[Column] = None, param_prob:Dict[str, float] = None) -> "Select":
+    def random(table: Table, sample: int = None, other_tables: list[Table] = [], param_cols: List[Column] = [], param_prob:Dict[str, float] = None) -> "Select":
         prob = {"where_p":0.9, "grp_p":0.3, "ord_p":0.3, "join_p":0.3, "lmt_p":0.2, "case_p":0.05, "offst_p":0.5, "*_p":0.2, "omit_p":0.1, "one_p":0.05, "date_p":0.1, "cols_p":0.5, "agg_p":0.1, "count_p":0.3, "alias_p": 0.05}
         if param_prob is not None:
             prob.update(param_prob)
@@ -1651,14 +1651,14 @@ class Select(SQLNode):
             asterisk = False
             omit = True
             num = sample if sample else random.randint(1, 10)
-            selected_cols = None
+            selected_cols = []
             expressions = [Expression.random(table, no_cols=True, param_prob=prob).sql() for _ in range(num)]
         
         else: #option 4 any expression
             asterisk = False
             omit = False
             num = sample if sample else random.randint(1, 10)
-            selected_cols = None
+            selected_cols = []
             if flip(prob["agg_p"]):
                 expressions = [Expression.random(table, agg=True, param_prob=prob).sql() for _ in range(num)]
                 if flip(prob["count_p"]):
@@ -1672,8 +1672,8 @@ class Select(SQLNode):
 
             
         where = Where.random(table, param_prob=prob, other_tables=other_tables) if flip(prob["where_p"]) else None
-        group_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["grp_p"]) else None
-        order_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["ord_p"]) else None
+        group_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["grp_p"]) else []
+        order_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["ord_p"]) else []
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
         offset = random.randint(1,20) if flip(prob["offst_p"]) and limit else None
         
@@ -1860,8 +1860,13 @@ class View(Table):
             
         temp = flip(prob["tmp_p"])
         view_name = random_name("view")
-        select = Select.random(table, other_tables=other_tables, sample=random.randint(1, len(table.columns)), param_prob=prob)
+        if not table.columns: # view with no columns
+            prob.update({"omit_p": 1, "cols_p": 0})
+            select = Select.random(table, param_prob=prob) 
+            return View(name=view_name, columns=[], select=select, temp=temp)
         
+        select = Select.random(table, other_tables=other_tables, sample=random.randint(1, len(table.columns)), param_prob=prob)
+
         return View(name=view_name, columns=select.columns, select=select, temp=temp)
     
     def mutate(self) -> "View":
