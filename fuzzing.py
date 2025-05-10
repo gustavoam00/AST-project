@@ -137,7 +137,7 @@ class Fuzzing:
                             f.write(f"Message: {err}\n")
 
                 if self.rem_table: # alter table
-                    updated_tables.remove(table) #= list(filter(lambda x: x.name != table.name, updated_tables))
+                    updated_tables.remove(table)
                 if self.gen_table: # view, alter table
                     updated_tables.append(node)
                     init_query += valid_query
@@ -149,17 +149,10 @@ class Fuzzing:
 
             pbar.update(1)
 
-            #it_per_sec = pbar.format_dict.get('rate')
-    
-            #if it_per_sec and it_per_sec < 0.3:
-                #print(f"Warning: Slow iteration detected ({it_per_sec:.2f}it/s)\n")
-                #print(f"Query: {new_query}")
-            
-
         pbar.close()
         return best_cov, best_c, new_query, updated_tables, best_nodes
 
-def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list, repeat: int = 1):
+def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list, repeat: int = 1, save: bool = True):
     cov = init_cov
     query = init_query
     tables = init_tables
@@ -171,18 +164,19 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
             cov, c, query, tables, nodes = stage.generate(cov, c, query, tables, nodes)
         random.shuffle(fuzz_pipeline)
         
-        with open(TEST_FOLDER + f"save_{cov}.txt", "w") as f:
-            f.write(f"Best Coverage: {cov}, {c}\n")
-            f.write(f"Best Query: {query}\n")
-            f.write(f"Tables: {tables}\n")
-        with open(TEST_FOLDER + f"query_{cov}.sql", "w") as f:
-            f.write("\n".join(query))
-        with open(TEST_FOLDER + "error.txt", "w") as f:
-            f.write("") # reset error.txt
+        if save:
+            with open(TEST_FOLDER + f"save_{cov}.txt", "w") as f:
+                f.write(f"Best Coverage: {cov}, {c}\n")
+                f.write(f"Best Query: {query}\n")
+                f.write(f"Tables: {tables}\n")
+            with open(TEST_FOLDER + f"query_{cov}.sql", "w") as f:
+                f.write("\n".join(query))
+            with open(TEST_FOLDER + "error.txt", "w") as f:
+                f.write("") # reset error.txt
 
-    return cov, query, tables, nodes
+    return cov, c, query, tables, nodes
 
 if __name__ == "__main__":
     reset()
-    cov, query, tables, nodes = run_pipeline(0, [], [], [], FUZZING_PIPELINE(PROB_TABLE), repeat=5)
+    cov, c, query, tables, nodes = run_pipeline(0, [], [], [], FUZZING_PIPELINE(PROB_TABLE), repeat=5)
     print(f"Final Coverage: {cov}")

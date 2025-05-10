@@ -1496,7 +1496,7 @@ class Pragma(SQLNode):
             ("busy_timeout", str(random.randint(1000, 10000))),
             ("collation_list", ""),
             ("database_list", ""),
-            ("encoding", random.choice(["", "UTF-8", "UTF-16", "UTF-16le", "UTF-16be"])),
+            ("encoding", random.choice(["", "\'UTF-8\'", "\'UTF-16\'", "\'UTF-16le\'", "\'UTF-16be\'"])),
             ("function_list", "")
         ]
 
