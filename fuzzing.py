@@ -10,17 +10,17 @@ random.seed(SEED)
 FUZZING_PIPELINE = lambda x: [
     Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False),
     Fuzzing("View", gen.View, gen_table=True, other_tables=True, prob=x),
-    Fuzzing("VirtualTable", gen.VirtualTable, gen_table=True, needs_table=False, need_prob=False, threshold=10),
+    Fuzzing("VirtualTable", gen.VirtualTable, gen_table=True, needs_table=False, need_prob=False),
     Fuzzing("AlterTable", gen.AlterTable, gen_table=True, commit=True, no_virt=True, mod_table=True, rem_table=True, need_prob=False), 
-    Fuzzing("Insert", gen.Insert, mod_table=True, commit=True, threshold=10, prob=x),
-    Fuzzing("Update", gen.Update, mod_table=True, commit=True, threshold=10, prob=x),
-    Fuzzing("Select", gen.Select, other_tables=True, threshold=10, prob=x),
-    Fuzzing("With", gen.With, threshold=10, prob=x),
+    Fuzzing("Insert", gen.Insert, mod_table=True, commit=True, prob=x),
+    Fuzzing("Update", gen.Update, mod_table=True, commit=True, prob=x),
+    Fuzzing("Select", gen.Select, other_tables=True, prob=x),
+    Fuzzing("With", gen.With, prob=x),
     Fuzzing("Trigger", gen.Trigger, mod_table=True, commit=True, no_virt=True, prob=x),
     Fuzzing("Index", gen.Index, no_virt=True, commit=True, prob=x),
     Fuzzing("Pragma", gen.Pragma, needs_table=False, need_prob=False),
     Fuzzing("Delete", gen.Delete, mod_table=True, commit=True, prob=x), 
-    Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, threshold=10, prob=x) 
+    Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, prob=x) 
 ]
 
 def compact_queries(strings: list[str], max_length: int) -> list[str]:
@@ -47,7 +47,7 @@ class Fuzzing:
     """
     def __init__(self, name, gen_fn, threshold=5, max=100, needs_table=True, other_tables=False, 
                  gen_table=False, rem_table=False, need_prob=True, no_virt=False, mod_table=False, 
-                 commit=False, prob=None):
+                 commit=False, prob=None, corpus=[]):
         self.name = name
         self.gen_fn = gen_fn
         self.threshold = threshold
@@ -61,6 +61,7 @@ class Fuzzing:
         self.mod_table = mod_table
         self.commit = commit
         self.prob = prob
+        self.corpus = corpus
 
     def get_random(self, table: gen.Table, tables: list) -> "gen.SQLNode":
         if self.need_prob:
@@ -81,8 +82,13 @@ class Fuzzing:
 
     def gen_valid_query(self, query: list, table: gen.Table, tables: list) -> tuple[int, list[str], gen.SQLNode]:
         for _ in range(self.max):
-            node = self.get_random(table, tables)
-            if not node: break
+            mutate = False
+            if self.corpus and random.random() < 0.3:
+                node = self.mutate()
+                mutate = True
+            else:
+                node = self.get_random(table, tables)
+            if not node: continue
             if self.commit:
                 new_query = random.choices(["BEGIN; " + node.sql() + ";" + random.choice([" COMMIT;", " ROLLBACK;"]), 
                                            "EXPLAIN " + node.sql() + ";", node.sql() + ";"], weights=[0.15, 0.15, 0.7], k=1)[0]
@@ -96,9 +102,9 @@ class Fuzzing:
                     for err in get_error(msg):
                         f.write(f"Message: {err}\n")
             if cov_valid > 0:
-                return cov_valid, [new_query], node
+                return cov_valid, [new_query], node, mutate
             
-        return 0, [], None
+        return 0, [], None, False
 
     def generate(self, cov: float, c, init_query: list, tables: list, nodes: list, 
                  find_best: bool = False):
@@ -109,7 +115,7 @@ class Fuzzing:
         best_c = c
         new_query = init_query
         updated_tables = list(tables)
-        best_nodes = nodes
+        self.corpus = nodes
 
         while tries < self.threshold:
             if tables:
@@ -117,9 +123,9 @@ class Fuzzing:
                 while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
                        (self.no_virt and isinstance(table, gen.VirtualTable))):
                     table = random.choice(updated_tables)
-                cov_valid, valid_query, node = self.gen_valid_query(init_query, table, updated_tables)
+                cov_valid, valid_query, node, mut = self.gen_valid_query(init_query, table, updated_tables)
             else:
-                cov_valid, valid_query, node = self.gen_valid_query(init_query, None, updated_tables)
+                cov_valid, valid_query, node, mut = self.gen_valid_query(init_query, None, updated_tables)
             if cov_valid == 0:
                 continue
             reset()
@@ -131,9 +137,9 @@ class Fuzzing:
                 best_cov = combined_cov
                 best_c = (lines_c, branch_c, taken_c, calls_c)
                 new_query = combined_query
-                best_nodes.append(node)
+                self.corpus.append(node)
 
-                with open(TEST_FOLDER + f"query_test.sql", "w") as f:
+                with open(TEST_FOLDER + f"query_test2.sql", "w") as f:
                     f.write("\n".join(new_query))
 
                 if "Error" in msg and "constraint" not in msg:
@@ -142,7 +148,7 @@ class Fuzzing:
                         for err in get_error(msg):
                             f.write(f"Message: {err}\n")
                 
-                if "ROLLBACK;" not in valid_query[0] and "EXPLAIN" not in valid_query[0]:
+                if "ROLLBACK;" not in valid_query[0] and "EXPLAIN" not in valid_query[0] and not mut:
                     if self.rem_table: # alter table
                         updated_tables.remove(table)
                     if self.gen_table: # view, alter table
@@ -157,7 +163,18 @@ class Fuzzing:
             pbar.update(1)
 
         pbar.close()
-        return best_cov, best_c, new_query, updated_tables, best_nodes
+        return best_cov, best_c, new_query, updated_tables, self.corpus
+    
+    def mutate(self) -> gen.SQLNode:
+        if not self.corpus:
+            return None
+        base_node = random.choice(self.corpus)
+        if hasattr(base_node, "mutate"):
+            try:
+                return base_node.mutate()
+            except Exception:
+                return None
+        return None
 
 def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list, 
                  repeat: int = 1, save: bool = True):

@@ -351,14 +351,14 @@ class Comparison(Predicate):
     '''
     column OP value
     '''
-    column: str
+    column: "Column"
     operator: str
     value: str
     table_name: str
     
     def sql(self) -> str:
         ret = f"{self.table_name}." if self.table_name else ""
-        return ret + f"{self.column} {self.operator} {self.value}"
+        return ret + f"{self.column.name} {self.operator} {self.value}"
 
     @staticmethod
     def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "Comparison":
@@ -370,20 +370,38 @@ class Comparison(Predicate):
         val = Expression.random(dtype=dtype, no_cols=True, param_prob=prob).sql()
         # val = random_value(dtype, prob["comp_nullc"], prob["comp_callc"])
         return Comparison(col.name, op, val, table_name)
+    
+    def mutate(self) -> "Comparison":
+        comparison = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "change_col", "change_op", "change_val"])
+
+        if mutation_type == "rename":
+            comparison.table_name = random_name("mut_comp")
+
+        elif mutation_type == "change_col":
+            comparison.column = comparison.column.mutate()
+
+        elif mutation_type == "change_op":
+            comparison.operator = random.choice(OPS[comparison.column.dtype])
+
+        elif mutation_type == "change_val":
+            comparison.value = random_value(comparison.column.dtype)
+
+        return comparison
 
 @dataclass
 class Between(Predicate):
     '''
     column BETWEEN low AND high
     '''
-    column: str
+    column: "Column"
     lower: str
     upper: str
     table_name: str
 
     def sql(self) -> str:
         ret = f"{self.table_name}." if self.table_name else ""
-        return ret + f"{self.column} BETWEEN {self.lower} AND {self.upper}"
+        return ret + f"{self.column.name} BETWEEN {self.lower} AND {self.upper}"
 
     @staticmethod
     def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "Between":
@@ -394,20 +412,38 @@ class Between(Predicate):
         v1 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         v2 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         low, high = sorted([v1, v2], key=lambda x: float(x))
-        return Between(col.name, low, high, table_name)
+        return Between(col, low, high, table_name)
+    
+    def mutate(self) -> "Between":
+        between = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "change_col", "change_lower", "change_upper"])
+
+        if mutation_type == "rename":
+            between.table_name = random_name("mut_betw")
+
+        elif mutation_type == "change_col":
+            between.column = between.column.mutate()
+
+        elif mutation_type == "change_lower":
+            between.lower = random_value(between.column.dtype)
+
+        elif mutation_type == "change_upper":
+            between.upper = random_value(between.column.dtype)
+
+        return between
 
 @dataclass
 class Like(Predicate):
     '''
     column LIKE val
     '''
-    column: str
+    column: "Column"
     val: str
     table_name: str
 
     def sql(self) -> str:
         ret = f"{self.table_name}." if self.table_name else ""
-        return ret + f"{self.column} LIKE {self.val}"
+        return ret + f"{self.column.name} LIKE {self.val}"
 
     @staticmethod
     def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "Like":
@@ -415,7 +451,7 @@ class Like(Predicate):
         if param_prob is not None:
             prob.update(param_prob)
         val = Like.generate_like_pattern(random_value("TEXT", prob["like_nullc"], prob["like_callc"]))
-        return Like(col.name, val, table_name)
+        return Like(col, val, table_name)
     
     @staticmethod
     def generate_like_pattern(base: str) -> str:
@@ -449,19 +485,34 @@ class Like(Predicate):
 
         return "'" + random.choice(patterns) + "'"
     
+    def mutate(self) -> "Like":
+        like = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "change_col", "change_val"])
+
+        if mutation_type == "rename":
+            like.table_name = random_name("mut_like")
+
+        elif mutation_type == "change_col":
+            like.column = like.column.mutate()
+
+        elif mutation_type == "change_val":
+            like.val = Like.generate_like_pattern(random_value("TEXT"))
+
+        return like
+    
 @dataclass
 class InList(Predicate):
     '''
     column in (v1, v2, v3, ...)
     '''
-    column: str
+    column: "Column"
     values: List[str]
     table_name: str = ""
 
     def sql(self) -> str:
         value_list = ', '.join(self.values)
         ret = f"{self.table_name}." if self.table_name else ""
-        return ret + f"{self.column} IN ({value_list})"
+        return ret + f"{self.column.name} IN ({value_list})"
 
     @staticmethod
     def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "InList":
@@ -476,6 +527,24 @@ class InList(Predicate):
         values = [Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql() for _ in range(count)]
         # values = [random_value(col.dtype, prob["inli_nullc"], prob["inli_callc"]) for _ in range(count)]
         return InList(col.name, values, table_name)
+    
+    def mutate(self) -> "InList":
+        inlist = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "add_value", "remove_value", "change_col"])
+
+        if mutation_type == "rename":
+            inlist.table_name = random_name("mut_inli")
+
+        elif mutation_type == "add_value":
+            inlist.values.append(random_value(inlist.column.dtype))
+
+        elif mutation_type == "remove_value" and len(inlist.values) > 1:
+            inlist.values.pop(random.randint(0, len(inlist.values) - 1))
+
+        elif mutation_type == "change_col":
+            inlist.column = inlist.column.mutate()
+
+        return inlist
     
 @dataclass
 class Exists(Predicate):
@@ -504,22 +573,28 @@ class Exists(Predicate):
         })
         select = Select.random(table, sample=1, param_prob=prob)
         return Exists(select)
+    
+    def mutate(self) -> "Exists":
+        exists = copy.deepcopy(self)
+        exists.select = exists.select.mutate()
+
+        return exists
 
 @dataclass
 class NullCheck(Predicate):
     '''
     column IS/IS NOT NULL
     '''
-    column: str
+    column: "Column"
     check: bool
     table_name: str
 
     def sql(self) -> str:
         ret = f"{self.table_name}." if self.table_name else ""
         if self.check:
-            return ret + f"{self.column} IS NULL"
+            return ret + f"{self.column.name} IS NULL"
         else:
-            return ret + f"{self.column} IS NOT NULL"
+            return ret + f"{self.column.name} IS NOT NULL"
 
     @staticmethod
     def random(col: "Column", param_prob: Dict[str, float] = None, table_name: str = "") -> "NullCheck":
@@ -527,7 +602,22 @@ class NullCheck(Predicate):
         if param_prob is not None:
             prob.update(param_prob)
         check = flip(prob["nullc"])
-        return NullCheck(col.name, check, table_name)
+        return NullCheck(col, check, table_name)
+    
+    def mutate(self) -> "NullCheck":
+        null_check = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "change_col", "toggle_nullc"])
+
+        if mutation_type == "rename":
+            null_check.table_name = random_name("mut_nullc")
+
+        elif mutation_type == "change_col":
+            null_check.column = null_check.column.mutate()
+
+        elif mutation_type == "toggle_nullc":
+            null_check.check = not null_check.check
+
+        return null_check
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -546,7 +636,7 @@ class Expression(SQLNode):
         prob = {"nocol_p":0.5, "cole_p": 0.8, "lit_p":0.9, "case_p":0.05, "time_p": 0.05}
         if param_prob is not None:
             prob.update(param_prob)
-        
+
         if agg:
             if flip(prob["lit_p"] / (prob["lit_p"] + prob["cole_p"])):
                 return Literal.random(dtype=dtype, agg=True, param_prob=prob)
@@ -567,19 +657,20 @@ class Expression(SQLNode):
 
 @dataclass
 class Literal(Expression):
-    value:str
+    value: str
+    dtype: str
     
     def sql(self) -> str:
         return self.value
     
     @staticmethod
-    def random(dtype:str=None, agg:bool = False, param_prob: Dict[str, float]=None) -> "Literal":
+    def random(dtype:str = None, agg:bool = False, param_prob: Dict[str, float] = None) -> "Literal":
         prob = {"null_p":0.01, "call_p":0.9, "one_p":0.01, "std_p": 0.75, "form_p":0.3, "cast_p":0.05, "agg2_p": 0.5, "rexp_p":0.01, "alias_p":0.01}
         if param_prob is not None:
             prob.update(param_prob)
             
         if flip(prob["one_p"]):
-            return Literal(value="1")
+            return Literal(value="1", dtype="INTEGER")
         
         if flip(prob["rexp_p"]):
             value = random_expression(dtype=dtype)
@@ -588,7 +679,7 @@ class Literal(Expression):
         current_dtype = dtype
         
         if flip(prob["std_p"]):
-            return Literal(value=value)
+            return Literal(value=value, dtype=current_dtype)
         
         for _ in range(random.randint(1,3)):
             if flip(prob["form_p"]):
@@ -599,7 +690,24 @@ class Literal(Expression):
         if agg and flip(prob["agg2_p"]):
             value, current_dtype = apply_random_aggregate_function(value, current_dtype) #aggregrate cannot be nested
         
-        return Literal(value=value)
+        return Literal(value, current_dtype)
+    
+    def mutate(self) -> "Literal":
+        literal = copy.deepcopy(self)
+        mutation_type = random.choice(["apply_formula", "apply_cast", "apply_agg"])
+
+        current_dtype = literal.dtype
+
+        if mutation_type == "apply_formula":
+            literal.value, literal.dtype = apply_random_formula(literal.value, current_dtype)
+
+        elif mutation_type == "apply_cast":
+            literal.value, literal.dtype = apply_random_cast(literal.value, current_dtype)
+
+        elif mutation_type == "apply_agg":
+            literal.value, literal.dtype = apply_random_aggregate_function(literal.value, current_dtype)
+
+        return literal
     
 @dataclass
 class Time(Expression):
@@ -621,10 +729,23 @@ class Time(Expression):
             f"{random.choice(TIME['CURRENT'])}"
         ]
         return Time(value=random.choice(options))
+    
+    def mutate(self) -> "Time":
+        time = copy.deepcopy(self)
+        options = [
+            f"{random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])})",
+            f"{random.choice(TIME['DATES'])}({random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})",
+            f"strftime({random.choice(TIME['TIME_FORMATS'])}, {random.choice(TIME['TIMES'])}, {random.choice(TIME['TIME_MODS'])})",
+            f"{random.choice(TIME['CURRENT'])}"
+        ]
+        time.value = random.choice(options)
+
+        return time
 
 @dataclass
 class ColumnExpression(Expression):
     value: str
+    table: "Table"
     
     def sql(self) -> str:   
         return self.value
@@ -641,7 +762,7 @@ class ColumnExpression(Expression):
         value = f"{table.name}.{column.name}"
             
         if flip(prob["std_p"]):
-            return ColumnExpression(value=value)
+            return ColumnExpression(value=value, table=table)
         
         for _ in range(random.randint(1,3)):
             if flip(prob["form_p"]):
@@ -652,9 +773,33 @@ class ColumnExpression(Expression):
         if agg:
             value, current_dtype = apply_random_aggregate_function(value, current_dtype)
         
-        return ColumnExpression(value=value)
-        
+        return ColumnExpression(value=value, table=table)
     
+    def mutate(self) -> "ColumnExpression":
+        col_expr = copy.deepcopy(self)
+        mutation_type = random.choice(["change_val", "apply_formula", "apply_cast", "apply_agg", "change_tbl"])
+
+        if mutation_type == "change_val":
+            column = random.choice(col_expr.table.columns)
+            col_expr.value = f"{table.name}.{column.name}"
+
+        elif mutation_type == "apply_formula":
+            current_dtype = random.choice(col_expr.table.columns).dtype 
+            col_expr.value, _ = apply_random_formula(col_expr.value, current_dtype) 
+
+        elif mutation_type == "apply_cast":
+            current_dtype = random.choice(col_expr.table.columns).dtype 
+            col_expr.value, _ = apply_random_cast(col_expr.value, current_dtype)
+
+        elif mutation_type == "apply_agg":
+            current_dtype = random.choice(col_expr.table.columns).dtype 
+            col_expr.value, _ = apply_random_aggregate_function(col_expr.value, current_dtype)
+
+        elif mutation_type == "change_tbl":
+            col_expr.table = col_expr.table.mutate()
+
+        return col_expr
+        
 @dataclass
 class Case(Expression):
     conditions:List[str]
@@ -707,7 +852,22 @@ class Case(Expression):
         else_ = "" if flip() else random_value(dtype)
         return Case(conditions, values, col, else_, col_dtype)
     
-    
+    def mutate(self) -> "Case":
+        case = copy.deepcopy(self)
+        mutation_type = random.choice(["change_else", "change_val", "apply_formula"])
+
+        if mutation_type == "change_else":
+            case.else_ = random_value(case.dtype) if flip() else "" 
+        
+        elif mutation_type == "change_val":
+            case.values = [random_value(case.dtype) for _ in case.values]
+        
+        elif mutation_type == "apply_formula":
+            for i in range(len(case.values)):
+                case.values[i], _ = apply_random_formula(case.values[i], case.dtype)
+
+        return case
+        
 #----------------------------------------------------------------------------------------------------------------------------------------------------#   
 
 @dataclass
@@ -740,6 +900,9 @@ class Where(SQLNode):
             right = Where.random(table, max_depth - 1, no_sub = no_sub, param_prob=prob)
             op = random.choice(["AND", "OR"])
             return BooleanExpr(left, right, op)
+        
+    def mutate(self) -> "Where":
+        return None
 
 @dataclass
 class InSubquery(Where):
@@ -777,6 +940,21 @@ class InSubquery(Where):
         )
 
         return InSubquery(column=column, subquery=subquery, table_name=table.name)
+    
+    def mutate(self) -> "InSubquery":
+        in_subquery = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "change_col", "change_subquery"])
+
+        if mutation_type == "rename":
+            in_subquery.table_name = random_name("mut_insub")
+
+        elif mutation_type == "change_col":
+            in_subquery.column = in_subquery.column.mutate()
+
+        elif mutation_type == "change_subquery":
+            in_subquery.subquery = in_subquery.subquery.mutate()
+
+        return in_subquery
 
 @dataclass
 class BooleanExpr(Where):
@@ -789,6 +967,24 @@ class BooleanExpr(Where):
 
     def sql(self) -> str:
         return f"({self.left.sql()} {self.operator} {self.right.sql()})"
+    
+    def mutate(self) -> "BooleanExpr":
+        bool_exp = copy.deepcopy(self)
+        mutation_type = random.choice(["change_op", "swap", "modify_left", "modify_right"])
+
+        if mutation_type == "change_op":
+            bool_exp.operator = random.choice(["<", ">", "=", "<=", ">=", "<>", "IS", "IS NOT"])
+
+        elif mutation_type == "swap":
+            bool_exp.left, bool_exp.right = bool_exp.right, bool_exp.left
+
+        elif mutation_type == "modify_left":
+            bool_exp.left = bool_exp.left.mutate()
+
+        elif mutation_type == "modify_right":
+            bool_exp.right = bool_exp.right.mutate()
+
+        return bool_exp
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -856,6 +1052,39 @@ class Column:
         nullable = not primary_key and not notnull
         
         return Column(name, dtype, nullable, primary_key, notnull, unique, check, default)
+    
+    def mutate(self) -> "Column":
+        column = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "change_dtype", "toggle_nullable", "toggle_primary_key", "toggle_unique", "toggle_check", "change_default"])
+
+        if mutation_type == "rename":
+            column.name = random_name("col")
+
+        elif mutation_type == "change_dtype":
+            column.dtype = random_type()
+
+        elif mutation_type == "toggle_nullable":
+            column.nullable = not column.nullable
+
+        elif mutation_type == "toggle_primary_key":
+            column.primary_key = not column.primary_key
+
+        elif mutation_type == "toggle_unique":
+            column.unique = not column.unique
+
+        elif mutation_type == "toggle_check":
+            if column.check is not None:
+                column.check = None
+            else:
+                column.check = Comparison.random(column) 
+
+        elif mutation_type == "change_default":
+            if column.default is None:
+                column.default = random_value(column.dtype)
+            else:
+                column.default = None
+
+        return column
 
 @dataclass
 class Table(SQLNode):
@@ -886,6 +1115,27 @@ class Table(SQLNode):
             columns.append(col)
 
         return Table(name, columns)
+    
+    def mutate(self) -> "Table":
+        table = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "add_col", "remove_col", "mutate_col"])
+
+        if mutation_type == "rename":
+            table.name += f"_{random.choice(['x', '1', 'tmp'])}"
+
+        elif mutation_type == "add_col":
+            new_col = Column.random()
+            table.columns.append(new_col)
+
+        elif mutation_type == "remove_col" and len(table.columns) > 1:
+            idx = random.randrange(len(table.columns))
+            del table.columns[idx]
+
+        elif mutation_type == "mutate_col":
+            col = random.choice(table.columns)
+            col.mutate()
+
+        return table
     
 @dataclass
 class AlterTable(Table):
@@ -949,11 +1199,15 @@ class AlterTable(Table):
             return None
         return AlterTable(name=random_name("atbl"), table=table, old_name=table.name, columns=table.columns)
     
+    def mutate(self) -> "AlterTable":
+        alter_table = copy.deepcopy(self)
+        return AlterTable.random(alter_table)
+        
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
 @dataclass
 class Insert(SQLNode):
-    table: str
+    table: Table
     columns: List[Column]
     values: List[List[str]]
     default: bool
@@ -972,7 +1226,7 @@ class Insert(SQLNode):
             vals_list.append(f"({vals})")
         all_vals = ", ".join(vals_list)
         
-        query += f"INTO {self.table} "
+        query += f"INTO {self.table.name} "
         if not self.full:
             query += f"({cols}) "
             
@@ -998,7 +1252,7 @@ class Insert(SQLNode):
         full = flip(prob["full_p"]) and not non_unique
         
         if default:
-           return Insert(table=table.name, columns=[], values=[], conflict_action=conflict_action, default=True, full=True)
+           return Insert(table=table, columns=[], values=[], conflict_action=conflict_action, default=True, full=True)
         
         cols = []
         num_rows = random.randint(1,5)
@@ -1022,17 +1276,42 @@ class Insert(SQLNode):
                 # value = random_value(col.dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
                 vals[i].append(value)
 
-        return Insert(table=table.name, columns=cols, values=vals, conflict_action=conflict_action, default=default, full=full)
+        return Insert(table=table, columns=cols, values=vals, conflict_action=conflict_action, default=default, full=full)
+    
+    def mutate(self) -> "Insert":
+        insert = copy.deepcopy(self)
+        mutation_type = random.choice(["change_val", "change_tbl", "remove_col", "toggle_full", "toggle_default"])
+
+        if mutation_type == "change_tbl":
+            insert.table = insert.table.mutate()
+
+        elif mutation_type == "change_val":
+            row_idx = random.randint(0, len(insert.values) - 1)
+            col_idx = random.randint(0, len(insert.columns) - 1)
+            insert.values[row_idx][col_idx] = random_value(insert.columns[col_idx].dtype)
+
+        elif mutation_type == "remove_col":
+            col_idx = random.randint(0, len(insert.columns) - 1)
+            del insert.values[:][col_idx]
+            del insert.columns[col_idx]
+
+        elif mutation_type == "toggle_full":
+            insert.full = not insert.full
+
+        elif mutation_type == "toggle_default":
+            insert.default = not insert.default
+
+        return insert
     
 @dataclass
 class Update(SQLNode):
-    table: str
+    table: Table
     columns: List[Column]
     values: List[str]
     where: Optional[Where] = None
 
     def sql(self) -> str:
-        query = f"UPDATE {self.table} SET "
+        query = f"UPDATE {self.table.name} SET "
         assignments = []
         for column, value in zip(self.columns, self.values):
             assignments.append(f"{column.name} = {value}")
@@ -1070,15 +1349,35 @@ class Update(SQLNode):
             vals.append(value)
 
         where = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
-        return Update(table=table.name, columns=cols, values=vals, where=where)
+        return Update(table=table, columns=cols, values=vals, where=where)
+    
+    
+    def mutate(self) -> "Update":
+        update = copy.deepcopy(self)
+        mutation_type = random.choice(["change_val", "change_tbl", "change_where", "toggle_where"])
+
+        if mutation_type == "change_tbl":
+            update.table = update.table.mutate()
+
+        elif mutation_type == "change_val":
+            col_idx = random.randint(0, len(update.columns) - 1)
+            update.values[col_idx] = random_value(update.columns[col_idx].dtype)
+
+        elif mutation_type == "change_where":
+            update.where = update.where.mutate() if update.where else None
+
+        elif mutation_type == "toggle_where":
+            update.where = Where.random(update.table) if not update.where else None
+
+        return update
     
 @dataclass   
 class Delete(SQLNode):
-    table: str
+    table: Table
     where: Optional[Where] = None
 
     def sql(self) -> str:
-        query = f"DELETE FROM {self.table}"
+        query = f"DELETE FROM {self.table.name}"
         if self.where:
             query += f" WHERE {self.where.sql()}"
         return query
@@ -1090,11 +1389,26 @@ class Delete(SQLNode):
             prob.update(param_prob)
             
         where = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
-        return Delete(table=table.name, where=where)
+        return Delete(table=table, where=where)
+    
+    def mutate(self) -> "Delete":
+        delete = copy.deepcopy(self)
+        mutation_type = random.choice(["change_tbl", "change_where", "toggle_where"])
+
+        if mutation_type == "change_tbl":
+            delete.table = delete.table.mutate()
+
+        elif mutation_type == "change_where":
+            delete.where = delete.where.mutate() if delete.where else None
+
+        elif mutation_type == "toggle_where":
+            delete.where = Where.random(delete.table) if not delete.where else None
+
+        return delete
     
 @dataclass
 class Replace(SQLNode):
-    table: str
+    table: Table
     columns: List[Column]
     values: List[List[str]]
     default: bool
@@ -1130,7 +1444,7 @@ class Replace(SQLNode):
         full = flip(prob["full_p"])
         
         if default:
-           return Replace(table=table.name, columns=[], values=[], default=True, full=True)
+           return Replace(table=table, columns=[], values=[], default=True, full=True)
         
         cols = []
         num_rows = random.randint(1,5)
@@ -1154,7 +1468,32 @@ class Replace(SQLNode):
                 # value = random_value(col.dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
                 vals[i].append(value)
 
-        return Replace(table=table.name, columns=cols, values=vals, default=default, full=full)
+        return Replace(table=table, columns=cols, values=vals, default=default, full=full)
+    
+    def mutate(self) -> "Replace":
+        replace = copy.deepcopy(self)
+        mutation_type = random.choice(["change_val", "change_tbl", "remove_col", "toggle_full", "toggle_default"])
+
+        if mutation_type == "change_tbl":
+            replace.table = replace.table.mutate()
+
+        elif mutation_type == "change_val":
+            row_idx = random.randint(0, len(replace.values) - 1)
+            col_idx = random.randint(0, len(replace.columns) - 1)
+            replace.values[row_idx][col_idx] = random_value(replace.columns[col_idx].dtype)
+
+        elif mutation_type == "remove_col":
+            col_idx = random.randint(0, len(replace.columns) - 1)
+            del replace.values[:][col_idx]
+            del replace.columns[col_idx]
+
+        elif mutation_type == "toggle_full":
+            replace.full = not replace.full
+
+        elif mutation_type == "toggle_default":
+            replace.default = not replace.default
+
+        return replace
     
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -1213,6 +1552,34 @@ class Join(SQLNode):
             join_type=join_type,
             alias=alias
         )
+    
+    def mutate(self) -> "Join":
+        join = copy.deepcopy(self)
+        mutation_type = random.choice(["join_type", "columns", "left_table", "right_table", "toggle_alias"])
+
+        if mutation_type == "join_type":
+            join.join_type = random.choice(["INNER", "LEFT", "CROSS"])
+
+        elif mutation_type == "columns":
+            left_cols = [c for c in join.left_table.columns if c.dtype in {"INTEGER", "TEXT"}]
+            right_cols = [c for c in join.right_table.columns if c.dtype in {"INTEGER", "TEXT"}]
+            
+            if left_cols and right_cols:
+                join.left_column = random.choice(left_cols)
+                join.right_column = random.choice(right_cols)
+
+        elif mutation_type == "left_table":
+            join.left_table = join.left_table.mutate()
+            join.alias = join.left_table.name == join.right_table.name
+
+        elif mutation_type == "right_table":
+            join.right_table = join.right_table.mutate()
+            join.alias = join.left_table.name == join.right_table.name
+
+        elif mutation_type == "toggle_alias":
+            join.alias = not join.alias
+
+        return join
 
 @dataclass
 class Select(SQLNode):
@@ -1336,6 +1703,52 @@ class Select(SQLNode):
             offset=offset,
             columns=selected_cols
         )
+    
+    def mutate(self) -> "Select":
+        select = copy.deepcopy(self)
+        mutation_type = random.choice([
+            "expressions", "toggle_where", "change_where", "group_by", "order_by", "limit", "offset",
+            "from_clause", "toggle_asterisk", "toggle_omit"
+        ])
+
+        if mutation_type == "expressions" and not select.asterisk and not select.omit:
+            col = random.choice(sel.columns)
+            expr_type = random.choice(["simple", "agg", "literal"])
+            if expr_type == "simple":
+                sel.expressions.append(f"{col.name}")
+            elif expr_type == "agg":
+                sel.expressions.append(f"MAX({col.name})")
+            else:
+                sel.expressions.append(str(random.randint(1, 100)))
+
+        elif mutation_type == "toggle_where" and sel.columns:
+            sel.where = Where.random(sel.from_clause if isinstance(sel.from_clause, Table) else sel.from_clause.left_table) if not sel.where else None
+
+        elif mutation_type == "change_where":
+            sel.where = sel.where.mutate() if sel.where else None
+
+        elif mutation_type == "group_by" and sel.columns:
+            sel.group_by = random.sample(sel.columns, k=min(1, len(sel.columns)))
+
+        elif mutation_type == "order_by" and sel.columns:
+            sel.order_by = random.sample(sel.columns, k=min(1, len(sel.columns)))
+
+        elif mutation_type == "limit":
+            sel.limit = random.randint(1, 100)
+
+        elif mutation_type == "offset" and sel.limit:
+            sel.offset = random.randint(1, 50)
+
+        elif mutation_type == "from_clause":
+            sel.from_clause = sel.from_clause.mutate()
+
+        elif mutation_type == "toggle_asterisk":
+            sel.asterisk = not sel.asterisk
+
+        elif mutation_type == "toggle_omit":
+            sel.omit = not sel.omit
+
+        return sel
         
 @dataclass
 class With(SQLNode):
@@ -1387,6 +1800,39 @@ class With(SQLNode):
         
         return With(names=with_names, querys=inner_selects, main_query=main_query, recursive=recursive)
     
+    def mutate(self) -> "With":
+        w = copy.deepcopy(self)
+        mutation_type = random.choice([
+            "rename", "change_inner", "change_main", "toggle_recursive", "add_cte", "remove_cte"
+        ])
+
+        if mutation_type == "rename":
+            idx = random.randrange(len(w.names))
+            w.names[idx] += f"_{random.choice(['x', 'tmp', 'v2'])}"
+            
+        elif mutation_type == "change_inner" and w.querys:
+            idx = random.randrange(0, len(w.querys))
+            w.querys[idx] = w.querys[idx].mutate()
+
+        elif mutation_type == "change_main":
+            w.main_query = w.main_query.mutate() # Select, Delete, Insert, Replace, Update
+
+        elif mutation_type == "toggle_recursive":
+            w.recursive = not w.recursive
+
+        elif mutation_type == "add_cte":
+            new_name = random_name("with")
+            new_query = random.choice(w.querys).mutate()
+            w.names.append(new_name)
+            w.querys.append(new_query)
+
+        elif mutation_type == "remove_cte" and len(w.names) > 1:
+            idx = random.randrange(len(w.names))
+            del w.names[idx]
+            del w.querys[idx]
+
+        return w
+    
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
 @dataclass
@@ -1417,6 +1863,25 @@ class View(Table):
         select = Select.random(table, other_tables=other_tables, sample=random.randint(1, len(table.columns)), param_prob=prob)
         
         return View(name=view_name, columns=select.columns, select=select, temp=temp)
+    
+    def mutate(self) -> "View":
+        view = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "toggle_temp", "change_select", "change_col"])
+
+        if mutation_type == "rename":
+            view.name += f"_{random.choice(['v2', 'x', 'tmp'])}"
+
+        elif mutation_type == "toggle_temp":
+            view.temp = not view.temp
+
+        elif mutation_type == "change_select":
+            view.select = view.select.mutate()
+
+        elif mutation_type == "change_col" and view.columns:
+            col = random.choice(view.columns)
+            col.mutate()
+
+        return view
 
 @dataclass
 class VirtualTable(Table):
@@ -1446,6 +1911,24 @@ class VirtualTable(Table):
                 else:
                     columns.append(Column(name=keys[0], dtype=c[keys[0]], primary_key=True))
         return VirtualTable(name=random_name(vtype), columns=columns, vtype=vtype)
+    
+    def mutate(self) -> "VirtualTable":
+        vt = copy.deepcopy(self)
+        mutation_type = random.choice([
+            "rename", "change_col", "toggle_viewed"
+        ])
+
+        if mutation_type == "rename":
+            vt.name += f"_{random.choice(['v2', 'alt', 'x'])}"
+
+        elif mutation_type == "change_col" and vt.vtype == "fts4":
+            col = random.choice(vt.columns)
+            col.mutate()
+
+        elif mutation_type == "toggle_viewed":
+            vt.viewed = not vt.viewed
+
+        return vt
 
 
 @dataclass
@@ -1489,6 +1972,30 @@ class Index(SQLNode):
         unique = flip(prob["uniq_p"])
         where = Where.random(table, no_sub=True, param_prob=prob) if flip(prob["where_p"]) else None
         return Index(name=name, table=table.name, columns=cols, unique=unique, where=where)
+    
+    def mutate(self, table: Optional["Table"] = None) -> "Index":
+        idx = copy.deepcopy(self)
+        mutation_type = random.choice(["rename", "toggle_unique", "change_col", "change_where", "toggle_where"])
+
+        if mutation_type == "rename":
+            idx.name += f"_{random.choice(['v2', 'alt', 'x'])}"
+
+        elif mutation_type == "toggle_unique":
+            idx.unique = not idx.unique
+
+        elif mutation_type == "change_col" and table is not None:
+            col_names = table.get_col_names()
+            if col_names:
+                num_cols = random.randint(1, min(len(col_names), 3))
+                idx.columns = random.sample(col_names, num_cols)
+
+        elif mutation_type == "change_where":
+            idx.where = idx.where.mutate() if idx.where else None
+
+        elif mutation_type == "toggle_where" and table is not None:
+            idx.where = Where.random(table) if not idx.where else None
+
+        return idx
     
 @dataclass
 class Trigger(SQLNode):
@@ -1569,7 +2076,37 @@ class Trigger(SQLNode):
                     statements.append(update.sql()+";")
 
         return Trigger(name=name, temp=temp, nexists=nexists, timing=timing, event=event, cols=cols, table=table, foreach=foreach, when=when, statements=statements)
-  
+
+    def mutate(self) -> "Trigger":
+        trg = copy.deepcopy(self)
+        mutation_type = random.choice([
+            "rename", "toggle_temp", "toggle_nexists", "toggle_foreach",
+            "change_timing", "change_event"
+        ])
+
+        if mutation_type == "rename":
+            trg.name += f"_{random.choice(['v2', 'alt', 'x'])}"
+
+        elif mutation_type == "toggle_temp":
+            trg.temp = not trg.temp
+
+        elif mutation_type == "toggle_nexists":
+            trg.nexists = not trg.nexists
+
+        elif mutation_type == "toggle_foreach":
+            trg.foreach = not trg.foreach
+
+        elif mutation_type == "change_timing":
+            trg.timing = "AFTER" if trg.timing == "BEFORE" else "BEFORE"
+
+        elif mutation_type == "change_event":
+            trg.event = random.choice([e for e in ["INSERT", "UPDATE", "DELETE"] if e != trg.event])
+
+        #elif mutation_type == "mutate_when":
+        #    trg.when = Where.random(trg.table)
+
+        return trg
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------#  
 
 @dataclass
@@ -1804,6 +2341,12 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
 
     return query
         
-# if __name__ == "__main__":
-#     print(randomQueryGen(prob, debug=False, cycle=1))
+if __name__ == "__main__":
+    table = Table.random()
+    sel = Select.random(table)
+    print(sel.sql())
+    for i in range(5):
+        print(sel.mutate().sql())
+
+    #print(randomQueryGen(prob, debug=False, cycle=1))
 
