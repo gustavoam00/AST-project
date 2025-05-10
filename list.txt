@@ -1,13 +1,43 @@
-aggregates like AVG, COUNT, etc. DONE
+DONE:
+aggregates like AVG, COUNT, etc.
+SELECT 'abc';
+SELECT '456' + 1;
+SELECT CAST("0x1A2B" AS INTEGER);
+SELECT printf("%d", 0x1A2B);
+SELECT CAST('123' AS INTEGER);
+PRAGMA mmap_size = 104857600;
+SELECT length('hello');
+SELECT lower('HELLO');
+SELECT upper('hello');
+SELECT trim('  hello  ');
+SELECT ltrim('  hello');
+SELECT rtrim('hello  ');
+SELECT replace('hello world', 'world', 'SQLite');
+SELECT substr('SQLite', 2, 3);
+SELECT instr('hello world', 'world');
+SELECT printf('Hello, %s!', 'World');
+SELECT hex('abc');
+SELECT quote('hello');
+SELECT abs(-42);
+SELECT round(3.14159);
+SELECT round(3.14159, 2);
+SELECT typeof(123);
+SELECT typeof(3.14);
+SELECT typeof('abc');
+SELECT typeof(NULL);
+SELECT coalesce(NULL, NULL, 'first non-null');    
+SELECT ifnull(NULL, 'fallback');     
+SELECT ifnull('value', 'fallback');   
+BOOLEAN: TRUE, FALSE 
+SELECT char(65, 66, 67);  
+SELECT unicode('É'); 
+SELECT random();  
+SELECT nullif(5, 5);                
+SELECT nullif(5, 6);
 
-SELECT 'abc'; DONE
-SELECT '456' + 1; DONE
-SELECT CAST('123' AS INTEGER); DONE 
+TODO:
 
 SELECT 'Hello, SQLite!' AS greeting;" 
-SELECT CAST("0x1A2B" AS INTEGER); DONE
-
-SELECT printf("%d", 0x1A2B); DONE
 
 CREATE VIRTUAL TABLE my_rtree USING rtree(id, minX, maxX, minY, maxY);
 INSERT INTO my_rtree VALUES (1, 0.0, 5.0, 0.0, 5.0);
@@ -49,53 +79,22 @@ BEGIN; COMMIT; ROLLBACK;
 .exit
 
 # 100MB, maybe for unix file-system?
-PRAGMA mmap_size = 104857600; DONE
+
 
 # BLOB: maybe but don't really need it (only small increase)
 CREATE TABLE t(x BLOB);
 INSERT INTO t VALUES (zeroblob(1000000));
 SELECT length(x) FROM t;
 
-# boolean type: not sure if that matters, small increase in coverage
-BOOLEAN
-TRUE, FALSE
+SELECT length(randomblob(4));  
+
 
 CREATE TABLE t(x);  -- so here we see that maybe we should add Expressions as part of random value generation (probably just wiht the flag no_cols)
 INSERT INTO t VALUES(1+2);
 UPDATE t SET x = x*2;
-
-
-SELECT length('hello'); DONE
-SELECT lower('HELLO');    DONE  
-SELECT upper('hello');   DONE
-SELECT trim('  hello  ');  DONE
-SELECT ltrim('  hello');   DONE    
-SELECT rtrim('hello  ');   DONE 
-SELECT replace('hello world', 'world', 'SQLite'); DONE
-SELECT substr('SQLite', 2, 3);   DONE
-SELECT instr('hello world', 'world');  DONE 
-SELECT printf('Hello, %s!', 'World');  DONE
-SELECT hex('abc');     DONE                 
-SELECT char(65, 66, 67);                 
-SELECT unicode('É');                      
-SELECT quote('hello');   DONE 
-
-SELECT abs(-42);            DONE              
-SELECT round(3.14159);      DONE         
-SELECT round(3.14159, 2);   DONE          
-SELECT random();                    
-SELECT length(randomblob(4));   
-SELECT total(value) FROM (SELECT NULL as value);
-
-SELECT ifnull(NULL, 'fallback');     
-SELECT ifnull('value', 'fallback');     
-SELECT nullif(5, 5);                
-SELECT nullif(5, 6);          
-SELECT coalesce(NULL, NULL, 'first non-null');
-SELECT typeof(123);     DONE     
-SELECT typeof(3.14);      DONE          
-SELECT typeof('abc');    DONE         
-SELECT typeof(NULL);
+                     
+                            
+SELECT total(value) FROM (SELECT NULL as value);   
 
 
 What about dropping tables, views, and columns?

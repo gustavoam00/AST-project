@@ -99,7 +99,7 @@ def random_value(dtype:str, null_chance:float = 0.05, callable_chance:float = 0.
     Returns:
         str: the generated value
     """
-    if flip(null_chance):
+    if flip(null_chance) or dtype == "NULL":
         return "NULL"
     
     dtype = random_type() if dtype == "TYPELESS" or dtype is None else dtype
@@ -119,6 +119,12 @@ def flip(weight:float = 0.5) -> bool:
 
 def random_chars(k):
     return "'" + ''.join(random.choices(string.ascii_letters + ' ', k=k)) + "'"
+
+def nonzero_random_value(dtype: str):
+    val = "0"
+    while val == "0":
+        val = random_value(dtype, null_chance=0)
+    return val
     
 def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
     """
@@ -132,7 +138,6 @@ def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
     Returns:
         tuple[str, str]: (transformed expression, resulting SQL type)
     """
-
     transformations = [
         (f"{expr} < {random_value(dtype, null_chance=0)}", "INTEGER"),
         (f"{expr} <= {random_value(dtype, null_chance=0)}", "INTEGER"),
@@ -148,6 +153,8 @@ def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
         (f"{random_value(dtype, null_chance=0)} != {expr}", "INTEGER"),
         (f"{expr} IS NULL", "INTEGER"),
         (f"{expr} IS NOT NULL", "INTEGER"),
+        (f"nullif({expr}, {expr})", "NULL"),
+        (f"nullif({expr}, {random_value(dtype, null_chance=0)})", dtype),
         (f"TYPEOF({expr})", "TEXT"),
     ]
 
@@ -168,36 +175,49 @@ def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
             (f"LENGTH({expr})", "INTEGER"),
             (f"{expr} LIKE {random_chars(4)}", "INTEGER"),
             (f"{expr} GLOB {random_chars(4)}", "INTEGER"),
+            (f"UNICODE({expr})", "INTEGER"),
             (f"PRINTF('%10s', {expr})", "TEXT"),
             (f"PRINTF('%-10s', {expr})", "TEXT"),
             (f"PRINTF('%.3s', {expr})", "TEXT"),
+            (f"{expr} + {random_value('INTEGER', null_chance=0)}", "INTEGER"),
+            (f"{random_value('INTEGER', null_chance=0)} + {expr}", "INTEGER"),
+            (f"{expr} - {random_value('INTEGER', null_chance=0)}", "INTEGER"),
+            (f"{random_value('INTEGER', null_chance=0)} - {expr}", "INTEGER"),
+            (f"{expr} * {random_value('INTEGER', null_chance=0)}", "INTEGER"),
+            (f"{random_value('INTEGER', null_chance=0)} * {expr}", "INTEGER"),
+            (f"{expr} / {nonzero_random_value(dtype)}", "REAL"),
         ])
-    elif dtype in ("INTEGER", "REAL"):
+    elif dtype in ("INTEGER", "REAL"): #it seems that for the most part TEXT can alwys be converted to Numerical, so all of these could be used?
         transformations.extend([
+            (f"ABS({expr})", dtype),
+            (f"ROUND({expr})", dtype),
+            (f"ROUND({expr}, {random.randint(0, 3)})", dtype),
+            (f"COALESCE(NULL, {expr})", dtype),
+            (f"COALESCE(NULL, {expr}, {random_value(dtype, null_chance=0.0)})", dtype),
+            (f"COALESCE(NULL, NULL, {expr})", dtype),
+            (f"COALESCE({expr}, {random_value(dtype, null_chance=0.0)})", dtype),
+            (f"IFNULL(NULL, {expr})", dtype),
+            (f"IFNULL({expr}, {random_value(dtype, null_chance=0.0)})", dtype),
+            (f"- ({expr})", dtype),
+            (f"+ ({expr})", dtype),
+            (f"PRINTF('{'%.2f' if dtype == 'REAL' else '%d'}', {expr})", "TEXT"),
+            (f"PRINTF('%x', {expr})", "TEXT"),
+            (f"PRINTF('%o', {expr})", "TEXT"),
+            (f"PRINTF('%c', {expr})", "TEXT"),
+            (f"PRINTF('%.6e', {expr})", "TEXT"),
+            (f"PRINTF('%.1g', {expr})", "TEXT"),
+            (f"PRINTF('%.0f%%', {expr})", "TEXT"),
             (f"{expr} + {random_value(dtype, null_chance=0)}", dtype),
             (f"{random_value(dtype, null_chance=0)} + {expr}", dtype),
             (f"{expr} - {random_value(dtype, null_chance=0)}", dtype),
             (f"{random_value(dtype, null_chance=0)} - {expr}", dtype),
             (f"{expr} * {random_value(dtype, null_chance=0)}", dtype),
             (f"{random_value(dtype, null_chance=0)} * {expr}", dtype),
-            (f"{expr} / {random_value(dtype, null_chance=0)}", "REAL"),
-            (f"{random_value(dtype, null_chance=0)} / {expr}", "REAL"),
-            (f"ABS({expr})", dtype),
-            (f"ROUND({expr})", dtype),
-            (f"ROUND({expr}, {random.randint(0, 3)})", dtype),
-            (f"COALESCE({expr}, {random_value(dtype, null_chance=1.0)})", dtype),
-            (f"IFNULL({expr}, {random_value(dtype, null_chance=1.0)})", dtype),
-            (f"-{expr}", dtype),
-            (f"+{expr}", dtype),
-            (f"PRINTF('Value: {'%.2f' if dtype == 'REAL' else '%d'}', {expr})", "TEXT"),
-            (f"PRINTF('Hex: %x', {expr})", "TEXT"),
-            (f"PRINTF('Octal: %o', {expr})", "TEXT"),
-            (f"PRINTF('Char: %c', {expr})", "TEXT"),
-            (f"PRINTF('Scientific: %.6e', {expr})", "TEXT"),
-            (f"PRINTF('Compact: %.1g', {expr})", "TEXT"),
-            (f"PRINTF('Percent: %.0f%%', {expr})", "TEXT"),
+            (f"{expr} / {nonzero_random_value(dtype)}", "REAL"),
+            (f"{expr} / NULLIF({0},{1})", "REAL"),
+            (f"{expr} / NULLIF({0},{0})", "NULL"),
         ])
-    else:
+    elif dtype == "TYPELESS":
         return expr, dtype
 
     return random.choice(transformations)
@@ -260,6 +280,29 @@ def apply_random_cast(expr: str, dtype: str) -> tuple[str, str]:
 
     cast_expr = f"CAST({expr} AS {target})"
     return cast_expr, target
+
+def random_expression(dtype:str="TYPELESS") -> str:
+    """
+    Generates a ranomd standalone expression.
+    
+    Args:
+        dtype (str, optional): Possible type of expression . Defaults to "TYPELESS".
+
+    Returns:
+        str: the expression
+    """
+    if type == "INTEGER":
+        options = [
+            ("RANDOM()", "INTEGER"),
+            ("TRUE", "INTEGER"),
+            ("FALSE", "INTEGER"),
+            (f"UNICODE({random_chars(1)})", "INTEGER"),
+            (f"CHAR(65, 66)")
+        ]
+    elif type == "TEXT":
+        options = [
+            (f"CHAR({', '.join(str(random.randint(0, 1114111)) for _ in range(random.randint(0, 4)))})", "TEXT"),
+        ]
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -479,6 +522,8 @@ class Expression(SQLNode):
         if param_prob is not None:
             prob.update(param_prob)
         
+        if prob["time_p"] == 0.2:
+            print('hey')
         if agg:
             if flip(prob["lit_p"] / (prob["lit_p"] + prob["cole_p"])):
                 return Literal.random(dtype=dtype, agg=True, param_prob=prob)
@@ -659,9 +704,9 @@ class Where(SQLNode):
             if other_tables and flip(prob["sub_p"]):
                 return InSubquery.random(table, other_tables, param_prob=prob) #{"where_p":prob["where_p"]})
             elif flip(prob["pred_p"]):
-                return Predicate.random(table)
+                return Predicate.random(table, param_prob=prob)
             else:
-                return Predicate.random(table, sub_allow=False) # Index does not accept subqueries
+                return Predicate.random(table, sub_allow=False, param_prob=prob) # Index does not accept subqueries
         else:
             left = Where.random(table, max_depth - 1, param_prob=prob)
             right = Where.random(table, max_depth - 1, param_prob=prob)
@@ -1142,7 +1187,7 @@ class Select(SQLNode):
     columns: Optional[List[Column]] = None
     #having: #this one is confusing, its like a group level condition generally after a group by
 
-    def sql(self) -> str:
+    def sql(self) -> str: 
         base = "SELECT "
         if self.asterisk:
             base += "*"
@@ -1151,7 +1196,7 @@ class Select(SQLNode):
             
         if self.omit:
             return base
-
+        
         base += f" FROM {self.from_clause.sql() if isinstance(self.from_clause, Join) else self.from_clause.name}"
         
         if self.where:
@@ -1179,7 +1224,7 @@ class Select(SQLNode):
             cols = param_cols
         else:
             cols = table.columns
-            
+        
         if flip(prob["*_p"]): # option 1: * (ALL)
             asterisk = True
             omit = False
@@ -1213,8 +1258,6 @@ class Select(SQLNode):
                 expressions = [Expression.random(table, param_prob=prob).sql() for _ in range(num)]
 
             
-        # date = flip(prob["date_p"])
-        # select_case = Case.random(table, random.choice(selected_cols), param_prob=prob) if flip(prob["case_p"]) else None
         where = Where.random(table, param_prob=prob, other_tables=other_tables) if flip(prob["where_p"]) else None
         group_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["grp_p"]) else None
         order_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["ord_p"]) else None
@@ -1228,18 +1271,18 @@ class Select(SQLNode):
             from_clause = Join.random(left, right)
             if left.name == right.name:
                 asterisk = True
+                omit = False
                 group_by = None
                 order_by = None
                 where = None
             
         else:
             from_clause = table
-
+            
         return Select(
             expressions=expressions,
             asterisk=asterisk,
             omit=omit,
-            # date=date,
             from_clause=from_clause,
             where=where,
             group_by=group_by,
@@ -1546,7 +1589,7 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
         tables = [Table.random()]
         query = tables[0].sql() + ";\n"
         for i in range(1):
-            insert = Insert.random(tables[0])
+            insert = Insert.random(tables[0], param_prob=prob)
             query += insert.sql() + ";\n"
     views = []
     for i in range(cycle):
@@ -1556,26 +1599,25 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                 tables.append(new_table)
                 query+= new_table.sql() + ";\n"
                 for i in range(1):
-                    insert = Insert.random(new_table)
+                    insert = Insert.random(new_table, param_prob=prob)
                     query += insert.sql() + ";\n"
                     
             table = random.choice(tables)
                 
             if flip(prob["insert"]) or debug:
-                insert = Insert.random(table)
+                insert = Insert.random(table, param_prob=prob)
                 query += insert.sql() + ";\n"
             if flip(prob["replace"]) or debug:
-                replace = Replace.random(table)
+                replace = Replace.random(table, param_prob=prob)
                 query += replace.sql() + ";\n"
             if flip(prob["update"]) or debug:
-                update = Update.random(table)
+                update = Update.random(table, param_prob=prob)
                 if update:
                     query += update.sql() + ";\n"
             if flip(prob["delete"]) or debug:
-                delete = Delete.random(table)
+                delete = Delete.random(table, param_prob=prob)
                 query += delete.sql() + ";\n"
-            if not isinstance(table, Table):
-                    print(table)
+                
             if flip(prob["alt_ren"]) or debug and not table.viewed:
                 new_table = AlterTable.random_tbl_rename(table)
                 if new_table:
@@ -1595,29 +1637,29 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                     query += new_table.sql() + ";\n"
             
             if flip(prob["view"]) or debug:
-                if not isinstance(table, Table):
-                    print(table)
                 table.viewed = True #flags table so that we dont modify it
-                view = View.random(table)
+                view = View.random(table, param_prob=prob)
                 views.append(view)
                 query += view.sql() + ";\n"
             if flip(prob["index"]) or debug:
-                index = Index.random(table)
+                index = Index.random(table, param_prob=prob)
                 if index:
                     query += index.sql() + ";\n"
             if flip(prob["trigger"]) or debug:
-                trigger = Trigger.random(table)
+                trigger = Trigger.random(table, param_prob=prob)
                 query += trigger.sql() + ";\n"
             
             table = random.choice(tables)# + views)
             if flip(prob["with"]) or debug:
-                with_ = With.random(table)
+                with_ = With.random(table, param_prob=prob)
                 query += with_.sql() + ";\n"
             
             if flip(prob["select1"]) or debug:
-                query += Select.random(table).sql() + ";\n"
+                select = Select.random(table, param_prob=prob)
+                query += select.sql() + ";\n"
             if (flip(prob["select2"]) and len(tables) > 1) or debug:
-                query += Select.random(table, other_tables=tables).sql() + ";\n"
+                select2 = Select.random(table, other_tables=tables)
+                query += select2.sql() + ";\n"
                 
             if flip(prob["pragma"]) or debug:
                 query += Pragma.random().sql() + ";\n"
