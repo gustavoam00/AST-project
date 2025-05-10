@@ -1339,9 +1339,9 @@ class VirtualTable(Table):
     TODO: NO ALTER TABLE for VIRTUAL TABLES
     fts4 supports: no foreign keys, otherwise everything is supported
     rtree supports: no foreign keys, otherwise everything is supported
-    dbstat supports: read_only (no insert, update, delete)
+    dbstat supports: read_only (no insert, update, delete), no trigger allowed
     '''
-    def random(param_prob: Dict[str,float] = None) -> "VirtualTable":
+    def random() -> "VirtualTable":
         vtype = random.choice(VIRTUAL["types"])
         col_names = VIRTUAL[vtype]
         columns = []
