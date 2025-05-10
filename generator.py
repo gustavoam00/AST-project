@@ -91,13 +91,15 @@ def random_type() -> str:
 
 def random_value(dtype:str, null_chance:float = 0.05, callable_chance:float = 0.9) -> str:
     """
-    Returns a ramdom value given the type, could be either interesting values or completely random.
+    Returns a random value given the dtype, could be either interesting values or completely random.
 
     Args:
-        dtype (str): The data type of the value
+        dtype (str): type of value
+        null_chance (float, optional): chance of null. Defaults to 0.05.
+        callable_chance (float, optional): chance of completely random. Defaults to 0.9.
 
     Returns:
-        str: the generated value
+        str: _description_
     """
     if flip(null_chance) or dtype == "NULL":
         return "NULL"
@@ -291,18 +293,20 @@ def random_expression(dtype:str="TYPELESS") -> str:
     Returns:
         str: the expression
     """
-    if type == "INTEGER":
+    if dtype == "INTEGER":
         options = [
-            ("RANDOM()", "INTEGER"),
-            ("TRUE", "INTEGER"),
-            ("FALSE", "INTEGER"),
-            (f"UNICODE({random_chars(1)})", "INTEGER"),
-            (f"CHAR(65, 66)")
+            "RANDOM()",
+            "TRUE",
+            "FALSE",
+            f"UNICODE({random_chars(1)})",
         ]
-    elif type == "TEXT":
+    elif dtype == "TEXT":
         options = [
-            (f"CHAR({', '.join(str(random.randint(0, 1114111)) for _ in range(random.randint(0, 4)))})", "TEXT"),
+            f"CHAR({', '.join(str(random.randint(0, 1114111)) for _ in range(random.randint(0, 4)))})",
         ]
+    else:
+        return random_value(dtype, null_chance=0)
+    return random.choice(options)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -320,7 +324,11 @@ class Predicate(SQLNode):
         return ""
     
     @staticmethod
-    def random(table: "Table", sub_allow: bool = True) -> "Predicate":
+    def random(table: "Table", sub_allow: bool = True, param_prob: Dict[str, float] = None) -> "Predicate":
+        prob = {}
+        if param_prob is not None:
+            prob.update(param_prob)
+            
         col = random.choice(table.columns)
         
         predicate_classes = [NullCheck, Comparison, InList]
@@ -334,9 +342,9 @@ class Predicate(SQLNode):
         
         cls = random.choice(predicate_classes)
         if cls == Exists:
-            return cls.random(table)
+            return cls.random(table, param_prob=prob)
         else:
-            return cls.random(col, table_name=table.name)
+            return cls.random(col, table_name=table.name, param_prob=prob)
     
 @dataclass
 class Comparison(Predicate):
@@ -359,7 +367,8 @@ class Comparison(Predicate):
             prob.update(param_prob)
         dtype = col.dtype
         op = random.choice(OPS[dtype])
-        val = random_value(dtype, prob["comp_nullc"], prob["comp_callc"])
+        val = Expression.random(dtype=dtype, no_cols=True, param_prob=prob).sql()
+        # val = random_value(dtype, prob["comp_nullc"], prob["comp_callc"])
         return Comparison(col.name, op, val, table_name)
 
 @dataclass
@@ -381,6 +390,7 @@ class Between(Predicate):
         prob = {"bet_nullc" : 0, "bet_callc" : 0.9}
         if param_prob is not None:
             prob.update(param_prob)
+        
         v1 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         v2 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         low, high = sorted([v1, v2], key=lambda x: float(x))
@@ -458,8 +468,13 @@ class InList(Predicate):
         prob = {"inli_nullc" : 0.05, "inli_callc" : 0.9}
         if param_prob is not None:
             prob.update(param_prob)
+        prob.update({
+            "null_p":prob["inli_nullc"],
+            "call_p":prob["inli_callc"]
+        })
         count = random.randint(2, 5)
-        values = [random_value(col.dtype, prob["inli_nullc"], prob["inli_callc"]) for _ in range(count)]
+        values = [Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql() for _ in range(count)]
+        # values = [random_value(col.dtype, prob["inli_nullc"], prob["inli_callc"]) for _ in range(count)]
         return InList(col.name, values, table_name)
     
 @dataclass
@@ -474,9 +489,19 @@ class Exists(Predicate):
 
     @staticmethod
     def random(table: "Table", param_prob: Dict[str, float] = None) -> "Exists":
-        prob = {"where_p" : 1, "grp_p" : 0, "ord_p" : 0, "*_p":0, "cols_p":0, "one_p":1, "omit_p":0, "lit_p":1}
+        prob = {"where_ex_p" : 1, "grp_ex_p" : 0, "ord_ex_p" : 0, "*_ex_p":0, "cols_ex_p":0, "one_ex_p":1, "omit_ex_p":0, "lit_ex_p":1}
         if param_prob is not None:
             prob.update(param_prob)
+        prob.update({
+            "where_p" : prob["where_ex_p"], 
+            "grp_p" : prob["grp_ex_p"], 
+            "ord_p" : prob["ord_ex_p"], 
+            "*_p":prob["*_ex_p"], 
+            "cols_p":prob["cols_ex_p"], 
+            "one_p":prob["one_ex_p"], 
+            "omit_p":prob["omit_ex_p"], 
+            "lit_p":prob["lit_ex_p"]
+        })
         select = Select.random(table, sample=1, param_prob=prob)
         return Exists(select)
 
@@ -517,13 +542,11 @@ class Expression(SQLNode):
         return ""
     
     @staticmethod
-    def random(table: "Table", column:Optional["Column"]=None, dtype:str=None, no_cols:bool=False, agg:bool = False, param_prob: Dict[str, float]=None):
-        prob = {"nocol_p":0.5, "cole_p": 0.8, "lit_p":0.8, "case_p":0.05, "time_p": 0.2, "nocol_p":0.5}
+    def random(table: Optional["Table"]=None, column:Optional["Column"]=None, dtype:str=None, no_cols:bool=False, agg:bool = False, param_prob: Dict[str, float]=None):
+        prob = {"nocol_p":0.5, "cole_p": 0.8, "lit_p":0.9, "case_p":0.05, "time_p": 0.05}
         if param_prob is not None:
             prob.update(param_prob)
         
-        if prob["time_p"] == 0.2:
-            print('hey')
         if agg:
             if flip(prob["lit_p"] / (prob["lit_p"] + prob["cole_p"])):
                 return Literal.random(dtype=dtype, agg=True, param_prob=prob)
@@ -551,14 +574,17 @@ class Literal(Expression):
     
     @staticmethod
     def random(dtype:str=None, agg:bool = False, param_prob: Dict[str, float]=None) -> "Literal":
-        prob = {"null_p":0.1, "call_p":0.9, "one_p":0.05, "std_p": 0.5, "form_p":0.3, "cast_p":0.2, "agg2_p": 0.5}
+        prob = {"null_p":0.01, "call_p":0.9, "one_p":0.01, "std_p": 0.75, "form_p":0.3, "cast_p":0.05, "agg2_p": 0.5, "rexp_p":0.01, "alias_p":0.01}
         if param_prob is not None:
             prob.update(param_prob)
             
         if flip(prob["one_p"]):
             return Literal(value="1")
         
-        value = random_value(dtype=dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
+        if flip(prob["rexp_p"]):
+            value = random_expression(dtype=dtype)
+        else:
+            value = random_value(dtype=dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
         current_dtype = dtype
         
         if flip(prob["std_p"]):
@@ -605,7 +631,7 @@ class ColumnExpression(Expression):
 
     @staticmethod
     def random(table: "Table", column:Optional["Column"]=None, agg:bool = False, param_prob: Dict[str, float] = None) -> "ColumnExpression":
-        prob = {"std_p": 0.4, "form_p": 0.4, "cast_p":0.2}
+        prob = {"std_p": 0.4, "form_p": 0.4, "cast_p":0.2,"alias_p":0.01}
         if param_prob is not None:
             prob.update(param_prob)
 
@@ -693,7 +719,7 @@ class Where(SQLNode):
         return ""
 
     @staticmethod
-    def random(table: "Table", max_depth: int = 1, other_tables: List["Table"] = None, param_prob: Dict[str, float] = None) -> "Where":
+    def random(table: "Table", max_depth: int = 1, no_sub: bool = False,other_tables: List["Table"] = None, param_prob: Dict[str, float] = None) -> "Where":
         prob = {"pred_p":1.0, "depth_p":0.7, "sub_p":0.05, "where_p":0.05}
         if param_prob is not None:
             prob.update(param_prob)
@@ -701,15 +727,17 @@ class Where(SQLNode):
         other_tables = other_tables or []
 
         if max_depth <= 0 or flip(prob["depth_p"]):
-            if other_tables and flip(prob["sub_p"]):
+            if no_sub:
+                return Predicate.random(table, sub_allow=False, param_prob=prob) # Index does not accept subqueries
+            elif other_tables and flip(prob["sub_p"]):
                 return InSubquery.random(table, other_tables, param_prob=prob) #{"where_p":prob["where_p"]})
             elif flip(prob["pred_p"]):
                 return Predicate.random(table, param_prob=prob)
             else:
-                return Predicate.random(table, sub_allow=False, param_prob=prob) # Index does not accept subqueries
+                return Predicate.random(table, sub_allow=False, param_prob=prob)
         else:
-            left = Where.random(table, max_depth - 1, param_prob=prob)
-            right = Where.random(table, max_depth - 1, param_prob=prob)
+            left = Where.random(table, max_depth - 1, no_sub = no_sub, param_prob=prob)
+            right = Where.random(table, max_depth - 1, no_sub = no_sub, param_prob=prob)
             op = random.choice(["AND", "OR"])
             return BooleanExpr(left, right, op)
 
@@ -800,10 +828,12 @@ class Column:
 
     @staticmethod
     def random(name: Optional[str] = None, param_prob:Dict[str, float] = None) -> "Column":
-        prob = {"pk_p":0.0, "unq_p":0.05, "dft_p":0.2, "nnl_p":0.2, "cck_p":0.3, "typeless_p":0.1}
+        prob = {"pk_col_p":0.0, "unq_p":0.05, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1}
         if param_prob is not None:
             prob.update(param_prob)
-        
+        prob.update({
+            "pk_p": prob["pk_col_p"]
+        })
         if flip(prob["typeless_p"]):
             dtype = "TYPELESS"
         else:
@@ -882,7 +912,7 @@ class AlterTable(Table):
         
     @staticmethod
     def random(table: "Table") -> "AlterTable":
-        if table.viewed:  # modifying tbales breaks views
+        if table.viewed:  # modifying tables breaks views
             return None
         
         fn = random.choice([AlterTable.random_add, AlterTable.random_col_rename, AlterTable.random_tbl_rename])
@@ -983,9 +1013,14 @@ class Insert(SQLNode):
         for col in sample_cols:
             cols.append(col)
             for i in range(num_rows):
-                null_chance = 0 if not col.nullable else prob["null_p"]
-                callable_chance = 1 if col.unique or col.primary_key else prob["call_p"]
-                vals[i].append(random_value(col.dtype, null_chance=null_chance, callable_chance=callable_chance))
+                if not col.nullable or col.unique or col.primary_key:
+                    prob["null_p"] = 0 
+                    prob["call_p"] = 1 
+                    prob["rexp_p"] = 0
+                    prob["std_p"] = 1
+                value = Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql()
+                # value = random_value(col.dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
+                vals[i].append(value)
 
         return Insert(table=table.name, columns=cols, values=vals, conflict_action=conflict_action, default=default, full=full)
     
@@ -1029,8 +1064,10 @@ class Update(SQLNode):
         
         for col in sample_cols: 
             cols.append(col)
-            null_chance = 0 if col.notnull else 0.05
-            vals.append(random_value(col.dtype, null_chance=null_chance))
+            prob["null_p"] = 0 if col.notnull else 0.05
+            value = Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql()
+            # value = random_value(col.dtype, null_chance=prob["null_p"])
+            vals.append(value)
 
         where = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
         return Update(table=table.name, columns=cols, values=vals, where=where)
@@ -1108,9 +1145,14 @@ class Replace(SQLNode):
         for col in sample_cols:
             cols.append(col)
             for i in range(num_rows):
-                null_chance = 0 if not col.nullable else prob["null_p"]
-                callable_chance = 1 if col.unique or col.primary_key else prob["call_p"]
-                vals[i].append(random_value(col.dtype, null_chance=null_chance, callable_chance=callable_chance))
+                if not col.nullable or col.unique or col.primary_key:
+                    prob["null_p"] = 0 
+                    prob["call_p"] = 1 
+                    prob["rexp_p"] = 0
+                    prob["std_p"] = 1
+                value = Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql()
+                # value = random_value(col.dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
+                vals[i].append(value)
 
         return Replace(table=table.name, columns=cols, values=vals, default=default, full=full)
     
@@ -1256,6 +1298,10 @@ class Select(SQLNode):
                     expressions.append("COUNT(*)")
             else:
                 expressions = [Expression.random(table, param_prob=prob).sql() for _ in range(num)]
+        
+        for i in range(len(expressions)):
+            if flip(prob["alias_p"]):
+                expressions[i] = f"{expressions[i]} AS {random_name(prefix='alias')}"
 
             
         where = Where.random(table, param_prob=prob, other_tables=other_tables) if flip(prob["where_p"]) else None
@@ -1317,10 +1363,13 @@ class With(SQLNode):
     
     @staticmethod
     def random(table: Table, param_prob: Dict[str,float] = None) -> "With":
-        prob = {"rec_p":0.5, "one_p":0, "*_p":1, "select_p":0.95, }
+        prob = {"rec_p":0.5, "one_with_p":0, "*_with_p":1, "select_p":0.95, }
         if param_prob is not None:
             prob.update(param_prob)
-        
+        prob.update({
+            "one_p":prob["one_with_p"],
+            "*_p":prob["*_with_p"],
+        })
         recursive = flip(prob["rec_p"])
         num = random.randint(1,3)
         with_names = [random_name("with") for _ in range(num)]
@@ -1355,9 +1404,13 @@ class View(Table):
     
     @staticmethod
     def random(table: Table, other_tables: List[Table] = None, param_prob: Dict[str,float] = None) -> "View":
-        prob = {"tmp_p":0.1, "one_p":0, "*_p":0.5, "cols_p":1}
+        prob = {"tmp_p":0.1, "one_view_p":0, "*_p":0.5, "cols_view_p":1}
         if param_prob is not None:
             prob.update(param_prob)
+        prob.update({
+            "one_p":prob["one_view_p"],
+            "one_p":prob["cols_view_p"],
+        })
             
         temp = flip(prob["tmp_p"])
         view_name = random_name("view")
@@ -1420,16 +1473,21 @@ class Index(SQLNode):
         if isinstance(table, View):
             return None # cannot index on View
         
-        prob = {"uniq_p":0.01, "where_p": 0.4, "pred_p":0.0, "sub_p":0.0}
+        prob = {"uniq_p":0.01, "where_p": 0.4}
         if param_prob is not None:
             prob.update(param_prob)
+        prob.update({
+            "rexp_p": 0,
+            "time_p": 0,
+            "std_p":  1,
+        })
             
         name = random_name("idx")
         col_names = table.get_col_names()
         num_cols = random.randint(1, min(len(col_names), 3))
         cols = random.sample(col_names, num_cols)
         unique = flip(prob["uniq_p"])
-        where = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
+        where = Where.random(table, no_sub=True, param_prob=prob) if flip(prob["where_p"]) else None
         return Index(name=name, table=table.name, columns=cols, unique=unique, where=where)
     
 @dataclass
@@ -1472,9 +1530,14 @@ class Trigger(SQLNode):
 
     @staticmethod
     def random(table: "Table", param_prob:Dict[str, float] = None) -> "Trigger":
-        prob = {"temp_p":0.2, "nex_p":0.2, "upcol_p":0.2, "where_p": 0.0, "feac_p":0.2, "dft_p":0, "conf_p":0.9}
+        prob = {"temp_p":0.2, "nex_p":0.2, "upcol_p":0.2, "where_trigger_p": 0.0, "feac_p":0.2, "dft_trigger_p":0, "conf_p":0.9}
         if param_prob is not None:
             prob.update(param_prob)
+        
+        prob.update({
+            "where_p":prob["where_trigger_p"], 
+            "dft_p":prob["dft_trigger_p"]
+        })
             
         name = random_name("trg")
         temp = flip(prob["temp_p"])
@@ -1546,6 +1609,59 @@ class Pragma(SQLNode):
         name, value = random.choice(pragmas)
         return Pragma(name=name, value=value)
     
+@dataclass
+class TransactionControl(SQLNode):
+    statement: str
+    transaction_active: bool
+    save_name: Optional[str] = None
+    release: Optional[str] = None
+    
+    def sql(self) -> str:
+        return self.statement
+    
+    @staticmethod
+    def random(transaction_active:bool = False, save_points: List[str]=[], param_prob:Dict[str, float] = None):
+        prob = {"rollback_p":0, "save_p":0.25, "release_p":0.5}
+        if param_prob is not None:
+            prob.update(param_prob)
+        
+        if not transaction_active:
+            statement = random.choice(["BEGIN","BEGIN TRANSACTION"])
+            return TransactionControl(statement=statement, transaction_active=True)
+        
+        if flip(prob["rollback_p"]):
+            if flip() and save_points:
+                return TransactionControl(statement=f"ROLLBACK TO {random.choice(save_points)}", transaction_active=False)
+            return TransactionControl(statement="ROLLBACK", transaction_active=False)
+        
+        if flip(prob["save_p"]):
+            save_name = random_name(prefix='save')
+            return TransactionControl(statement=f"SAVEPOINT {save_name}", transaction_active=True, save_name=save_name)
+        
+        if save_points and flip(prob["release_p"]):
+            save_name = random.choice(save_points)
+            return TransactionControl(statement=f"RELEASE SAVEPOINT {save_name}", transaction_active=True, release=save_name)
+        
+        return TransactionControl(statement="COMMIT", transaction_active=False)
+
+@dataclass
+class Optimization(SQLNode):
+    statement:str
+    
+    def sql(self) -> str:
+        return self.statement
+    
+    @staticmethod
+    def random(table: "Table"):
+        statement = random.choice([
+            "ANALYZE", 
+            "VACUUM", 
+            "REINDEX", 
+            f"ANALYZE {table.name}",
+            f"REINDEX {table.name}"
+            ])
+        return Optimization(statement=statement)
+    
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
 def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cycle: int = 3, context: Table = None) -> str:
@@ -1578,7 +1694,10 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
         "index":   0.2,
         "trigger": 0.2,
         "pragma":  0.2,
+        "control": 0.01,
+        "optimize":0.01,
     }
+    
     if param_prob is not None:
         prob.update(param_prob)
     
@@ -1590,6 +1709,8 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
             insert = Insert.random(tables[0], param_prob=prob)
             query += insert.sql() + ";\n"
     views = []
+    transaction_active = False
+    save_points = []
     for i in range(cycle):
         # try:
             if flip(prob["table"]) or debug:
@@ -1656,11 +1777,26 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                 select = Select.random(table, param_prob=prob)
                 query += select.sql() + ";\n"
             if (flip(prob["select2"]) and len(tables) > 1) or debug:
-                select2 = Select.random(table, other_tables=tables)
+                select2 = Select.random(table, other_tables=tables, param_prob=prob)
                 query += select2.sql() + ";\n"
                 
             if flip(prob["pragma"]) or debug:
-                query += Pragma.random().sql() + ";\n"
+                pragma = Pragma.random()
+                query += pragma.sql() + ";\n"
+                
+            if flip(prob["control"]) or debug:
+                transaction = TransactionControl.random(transaction_active=transaction_active, save_points=save_points, param_prob=prob)
+                transaction_active = transaction.transaction_active
+                if transaction.save_name:
+                    save_points.append(transaction.save_name)
+                if transaction.release:
+                    save_points.remove(transaction.release)
+                query+=transaction.sql() + ";\n"
+                
+            if (flip(prob["optimize"]) or debug) and not transaction_active:
+                optimization = Optimization.random(table)
+                query+=optimization.sql() + ";\n"
+                
         
         # except Exception as e:
         #     print(e)

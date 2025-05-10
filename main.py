@@ -59,26 +59,25 @@ if __name__ == "__main__":
     # #test(BUGS[0])
 
     prob = {   
-        "table"  : 0.2,
-        "alt_ren": 0.8, 
-        "alt_add": 0.8,
-        "alt_col": 0.8,
-        "select1": 1,
-        "select2": 0.2,
-        "with":    1,
-        "view":    0.2,
-        "index":   0.2,
-        "trigger": 0.2,
-        "insert":  0.2,
-        "update":  0.2,
-        "replace": 0.2,
-        "delete":  0.2,
-        "pragma":  0,
+        "table"  :  0.2,
+        "alt_ren":  0.2, 
+        "alt_add":  0.2,
+        "alt_col":  0.2,
+        "select1":  1,
+        "select2":  1,
+        "with":     0.2,
+        "view":     0.2,
+        "index":    0.2,
+        "trigger":  0.2,
+        "insert":   0.2,
+        "update":   0.2,
+        "replace":  0.2,
+        "delete":   0.2,
+        "pragma":   0.2,
+        "control":  0.05,
+        "optimize": 0.01,
         
-        "time_p":  0,
-        "std_p": 0,
-        "agg_p": 1, 
-        "agg2_p": 1,
+        "alias_p":  1
     }
 
     
