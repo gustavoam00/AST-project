@@ -1677,9 +1677,11 @@ class Select(SQLNode):
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
         offset = random.randint(1,20) if flip(prob["offst_p"]) and limit else None
         
-        if other_tables and flip(prob["join_p"]):
+        # TODO: view with no columns cannot Join
+        right = [t for t in other_tables if t.columns]
+        if other_tables and flip(prob["join_p"]) and table.columns and right:
             left = table
-            right = random.choice(other_tables)
+            right = random.choice(right)
             from_clause = Join.random(left, right)
             if left.name == right.name:
                 asterisk = True
@@ -1860,7 +1862,7 @@ class View(Table):
             
         temp = flip(prob["tmp_p"])
         view_name = random_name("view")
-        if not table.columns: # view with no columns
+        if not table.columns: # TODO: view with no columns
             prob.update({"omit_p": 1, "cols_p": 0})
             select = Select.random(table, param_prob=prob) 
             return View(name=view_name, columns=[], select=select, temp=temp)
