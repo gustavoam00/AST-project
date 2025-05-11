@@ -411,7 +411,9 @@ class Between(Predicate):
         
         v1 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         v2 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
-        low, high = sorted([v1, v2], key=lambda x: float(x))
+        # for some reason v1 or v2 can be 'NULL' not sure from where
+        # low, high = sorted([v1, v2], key=lambda x: float(x)) 
+        low, high = sorted([v1, v2])
         return Between(col, low, high, table_name)
     
     def mutate(self) -> "Between":
