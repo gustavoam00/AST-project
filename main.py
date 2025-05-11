@@ -63,27 +63,27 @@ if __name__ == "__main__":
         "alt_ren":  0.2, 
         "alt_add":  0.2,
         "alt_col":  0.2,
-        "select1":  1,
-        "select2":  1,
+        "select1":  0.2,
+        "select2":  0.2,
         "with":     0.2,
         "view":     0.2,
-        "index":    0.2,
+        "index":    1,
         "trigger":  0.2,
         "insert":   0.2,
         "update":   0.2,
         "replace":  0.2,
         "delete":   0.2,
-        "pragma":   0.2,
-        "control":  0.05,
+        "pragma":   0.01,
+        "control":  0.01,
         "optimize": 0.01,
+        "drop_tbl": 0.05,
     }
 
     
     for _ in tqdm(range(100)):
-        query = gen.randomQueryGen(prob, debug=False, cycle=2)
+        query = gen.randomQueryGen(param_prob=prob, debug=False, cycle=1)
         error = run_query([query], SQLITE_VERSIONS[0])
         
-        # pbar.update(1)
         if "Error" in error:
             print(error)
             # breakpoint()

@@ -35,6 +35,10 @@ SELECT random();
 SELECT nullif(5, 5);                
 SELECT nullif(5, 6);
 BEGIN; COMMIT; ROLLBACK;~SAVEPOINTS
+INSERT INTO t VALUES(1+2);
+UPDATE t SET x = x*2;
+SELECT total(value) FROM (SELECT NULL as value);
+INSERT INTO t(x) VALUES(:myparam);   
 
 CREATE TABLE t(x INTEGER);
 INSERT INTO t VALUES (1), (2), (3), ..., (1000);
@@ -70,29 +74,11 @@ SELECT jt.key, jt.value
 FROM docs, json_tree(docs.data) AS jt
 WHERE jt.type = 'text';
 
-CREATE TABLE t(x);
-INSERT INTO t(x) VALUES(:myparam);
-
 # does not work from coverage_test
 .open test.db
 .exit
-
-
-# BLOB: maybe but don't really need it (only small increase)
-CREATE TABLE t(x BLOB);
-INSERT INTO t VALUES (zeroblob(1000000));
-SELECT length(x) FROM t;
-
-SELECT length(randomblob(4));  
-
-
-CREATE TABLE t(x);  -- so here we see that maybe we should add Expressions as part of random value generation (probably just wiht the flag no_cols)
-INSERT INTO t VALUES(1+2);
-UPDATE t SET x = x*2;
-                     
-                            
-SELECT total(value) FROM (SELECT NULL as value);   
-
+.parameter?
+           
 
 What about dropping tables, views, and columns?
 
