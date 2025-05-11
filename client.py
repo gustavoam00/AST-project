@@ -5,7 +5,7 @@ from tqdm import tqdm
 import generator as gen
 from metric import get_coverage, metric, coverage_score, save_error
 
-logging.disable(logging.ERROR) 
+#logging.disable(logging.INFO) 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 LOCAL = False
@@ -37,22 +37,26 @@ def reset():
     # does nothing, just here because fuzzing calls reset() to reset the docker if local.py is used
     return 0 
 
-def run_query(sql_query, sqlite_version):
+def run_query(sql_query, sqlite_version, db="test.db"):
     """
     Executes an SQL query using the specified SQLite version inside a Docker container.
     """
-    sql_script = " ; ".join(sql_query)
+    commands = [f'./{sqlite_version} {db} "{query}"' for query in sql_query]
+    command_str = " ; ".join(commands)
     client = docker.from_env()
     try:
         result = client.containers.run(
             DOCKER_IMAGE,
-            command=f'/bin/bash -c "echo \\"{sql_script}\\" | /usr/bin/{sqlite_version}"',
-            working_dir="/home/test/sqlite",
-            remove=True
+            command=["bash", "-c", command_str], #f'/bin/bash -c "echo \\"{sql_script}\\" | /usr/bin/{sqlite_version}"',
+            working_dir="/usr/bin",
+            stdout = True,
+            stderr = True,
+            remove=True,
+            tty=True
         )
-        return "  " + result.decode().strip().replace("\n", "\n  ")
+        return result.decode()
     except Exception as e:
-        logging.error(f"{sqlite_version}: {e}")
+        #logging.error(f"{sqlite_version}: {e}")
         return str(e)
 
 def test(query):
@@ -67,7 +71,7 @@ def test(query):
 
     if res1 != res2:
         logging.warning("Bug found!")
-        logging.info("Query:\n  " + "\n  ".join(query))
+        #logging.info(res1)
     else:
         logging.info("No bug detected.")
 
@@ -80,7 +84,7 @@ if __name__ == "__main__":
     ]
     d = "test/best/_query_52.895.sql"
     d = "test/query_test.sql"
-    #d = "test/best/_query_49.6700.sql"
+    d = "test/results/_query_52.9500.sql"
     with open(d, "r") as f:
         sql = f.read()
         FULL = [stmt.strip() + ";" for stmt in sql.split(";") if stmt.strip()]
@@ -89,6 +93,8 @@ if __name__ == "__main__":
     combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
     
     save_error(msg, "test/error/error_test.txt")
+
+    test(FULL[:3])
 
     a, b, c, d, _ = get_coverage(msg)
     print(a, b, c, d)

@@ -35,3 +35,14 @@ PROB_TABLE = {
     "replace": 0.2,
     "pragma": 0.1,
 '''
+
+SQL_KEYWORDS = ["SELECT", "FROM", "WHERE", "ORDER BY", "GROUP BY", "JOIN", 
+                "LEFT JOIN", "INNER JOIN", "LIMIT", "OFFSET", "CREATE", "TABLE", 
+                "VIRTUAL", "VIEW", "BETWEEN", "AS", "IN", "LIKE", "AND", "OR",
+                "MATCH", "EXISTS", "EXPLAIN", "BEGIN", "END", "COMMIT", "ROLLBACK",
+                "IS", "NOT", "NULL", "CASE", "WHEN", "THEN", "ELSE", "RENAME", "COLUMN",
+                "VALUES", "TO", "INSERT", "INTO", "UPDATE", "DELETE", "DEFAULT", "SET"
+                "REPLACE", "WITH", "USING", "INDEX", "ON", "UNIQUE", "TRIGGER",
+                "BEFORE", "AFTER", "TEMP", "IF", "FOR", "EACH", "ROW", "PRAGMA", ""]
+
+SQL_OPERATORS = ["=", "!=", "<", ">", "<=", ">=", "LIKE"]

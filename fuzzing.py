@@ -1,9 +1,9 @@
 from tqdm import tqdm
-from client_local import coverage_test, reset, LOCAL
+from client import coverage_test, reset, LOCAL
 from metric import coverage_score, save_error
 import generator as gen
 import random, re
-from config import TEST_FOLDER, SEED, PROB_TABLE
+from config import TEST_FOLDER, SEED, PROB_TABLE, SQL_KEYWORDS, SQL_OPERATORS
 
 random.seed(SEED)
 
@@ -21,16 +21,6 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("Delete", gen.Delete, mod_table=True, commit=True, prob=x), 
     Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, prob=x),
 ]
-
-SQL_KEYWORDS = ["SELECT", "FROM", "WHERE", "ORDER BY", "GROUP BY", "JOIN", 
-                "LEFT JOIN", "INNER JOIN", "LIMIT", "OFFSET", "CREATE", "TABLE", 
-                "VIRTUAL", "VIEW", "BETWEEN", "AS", "IN", "LIKE", "AND", "OR",
-                "MATCH", "EXISTS", "EXPLAIN", "BEGIN", "END", "COMMIT", "ROLLBACK",
-                "IS", "NOT", "NULL", "CASE", "WHEN", "THEN", "ELSE", "RENAME", "COLUMN",
-                "VALUES", "TO", "INSERT", "INTO", "UPDATE", "DELETE", "DEFAULT", "SET"
-                "REPLACE", "WITH", "USING", "INDEX", "ON", "UNIQUE", "TRIGGER",
-                "BEFORE", "AFTER", "TEMP", "IF", "FOR", "EACH", "ROW", "PRAGMA", ""]
-OPERATORS = ["=", "!=", "<", ">", "<=", ">=", "LIKE"]
 
 def mutate_query(query: str) -> str:
     mutations = [mutate_keyword, mutate_values, mutate_operator]
@@ -55,9 +45,9 @@ def mutate_values(query: str) -> str:
     return query
 
 def mutate_operator(sql: str) -> str:
-    for op in OPERATORS:
+    for op in SQL_OPERATORS:
         if op in sql:
-            new_op = random.choice(OPERATORS)
+            new_op = random.choice(SQL_OPERATORS)
             return sql.replace(op, new_op, 1)
     return sql
 
@@ -275,5 +265,5 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
 
 if __name__ == "__main__":
     pipeline = FUZZING_PIPELINE(PROB_TABLE)
-    cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=5)
+    cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=10)
     print(f"Final Coverage: {cov}")
