@@ -322,6 +322,9 @@ class SQLNode:
 
 @dataclass
 class Predicate(SQLNode):
+    """
+    Any predicate: Nullcheck, Comparison, InList, Between, and Like
+    """
     def sql(self) -> str:
         return ""
     
@@ -662,6 +665,9 @@ class Expression(SQLNode):
 
 @dataclass
 class Literal(Expression):
+    """
+    Any Literal such as explicit values, funcitons, or formulas
+    """
     value: str
     dtype: str
     
@@ -719,6 +725,9 @@ class Literal(Expression):
     
 @dataclass
 class Time(Expression):
+    """
+    Time expressions
+    """
     value:str
     
     def sql(self) -> str:
@@ -752,6 +761,9 @@ class Time(Expression):
 
 @dataclass
 class ColumnExpression(Expression):
+    """
+    Expressions that explicitly include a column
+    """
     value: str
     table: "Table"
     
@@ -810,6 +822,9 @@ class ColumnExpression(Expression):
         
 @dataclass
 class Case(Expression):
+    """
+    Case Expressions
+    """
     conditions:List[str]
     values:List[str]
     col:str
@@ -1213,6 +1228,9 @@ class AlterTable(Table):
 
 @dataclass
 class Insert(SQLNode):
+    """
+    INSERT [OR...] (cols) VAlUES values
+    """
     table: Table
     columns: List[Column]
     values: List[List[str]]
@@ -1306,6 +1324,9 @@ class Insert(SQLNode):
     
 @dataclass
 class Update(SQLNode):
+    """
+    UPDATE table SET columns = values WHERE ... 
+    """
     table: Table
     columns: List[Column]
     values: List[str]
@@ -1374,6 +1395,9 @@ class Update(SQLNode):
     
 @dataclass   
 class Delete(SQLNode):
+    """
+    DELETE FROM table WHERE ...
+    """
     table: Table
     where: Optional[Where] = None
 
@@ -1409,6 +1433,9 @@ class Delete(SQLNode):
     
 @dataclass
 class Replace(SQLNode):
+    """
+    REPLACE INTO table (cols) VALUES values
+    """
     table: Table
     columns: List[Column]
     values: List[List[str]]
@@ -1584,6 +1611,9 @@ class Join(SQLNode):
 
 @dataclass
 class Select(SQLNode):
+    """
+    SELECT expressions [...];
+    """
     expressions: List[str]
     from_clause: Union[Table, Join]
     asterisk: bool = False
@@ -1892,6 +1922,9 @@ class View(Table):
 
 @dataclass
 class VirtualTable(Table):
+    """
+    CREATE VIRTUAL TABLE table USING ... [(cols)]
+    """
     name: str
     columns: List[Column]
     vtype: str
@@ -2121,6 +2154,9 @@ class Trigger(SQLNode):
 
 @dataclass
 class DropTable(SQLNode):
+    """
+    DROP [TABLE, VIEW,...] [IF EXISTS] name
+    """
     table_name: str
     if_exists: bool
     table_type: str
@@ -2194,6 +2230,9 @@ class Pragma(SQLNode):
     
 @dataclass
 class TransactionControl(SQLNode):
+    """
+    Tansactions controls in SQL
+    """
     statement: str
     transaction_active: bool
     save_name: Optional[str] = None
@@ -2229,6 +2268,9 @@ class TransactionControl(SQLNode):
 
 @dataclass
 class Optimization(SQLNode):
+    """
+    Optimization statements in SQL
+    """
     statement:str
     
     def sql(self) -> str:

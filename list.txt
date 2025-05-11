@@ -38,16 +38,17 @@ BEGIN; COMMIT; ROLLBACK;~SAVEPOINTS
 INSERT INTO t VALUES(1+2);
 UPDATE t SET x = x*2;
 SELECT total(value) FROM (SELECT NULL as value);
-INSERT INTO t(x) VALUES(:myparam);   
+INSERT INTO t(x) VALUES(:myparam); 
+SELECT 'Hello, SQLite!' AS greeting;  
 
 CREATE TABLE t(x INTEGER);
 INSERT INTO t VALUES (1), (2), (3), ..., (1000);
 ANALYZE;
 SELECT * FROM t WHERE x = 500;
 
-TODO:
+DROP [IF EXISTS] [TABLE, VIEW, TRIGGER, INDEX] name;
 
-SELECT 'Hello, SQLite!' AS greeting;
+TODO:
 
 CREATE VIRTUAL TABLE my_rtree USING rtree(id, minX, maxX, minY, maxY);
 INSERT INTO my_rtree VALUES (1, 0.0, 5.0, 0.0, 5.0);
@@ -68,6 +69,7 @@ SELECT * FROM emails WHERE emails MATCH 'hello';
 CREATE VIRTUAL TABLE dbstat USING dbstat;
 SELECT name, path, pageno FROM dbstat WHERE name='your_table_name';
 
+#seems dangerous to go into jsons
 CREATE TABLE docs(id INTEGER PRIMARY KEY, data TEXT);
 INSERT INTO docs(data) VALUES ('{"name":"Alice","age":30,"skills":["SQL","C"]}');
 SELECT jt.key, jt.value
@@ -79,8 +81,6 @@ WHERE jt.type = 'text';
 .exit
 .parameter?
            
-
-What about dropping tables, views, and columns?
 
 functions from PRAGMA function_list;
 group_concat|1
