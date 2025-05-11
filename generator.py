@@ -540,7 +540,7 @@ class InList(Predicate):
         elif mutation_type == "add_value":
             inlist.values.append(random_value(inlist.column.dtype))
 
-        elif mutation_type == "remove_value" and len(inlist.values) > 1:
+        elif mutation_type == "remove_value" and inlist.values:
             inlist.values.pop(random.randint(0, len(inlist.values) - 1))
 
         elif mutation_type == "change_col":
@@ -758,7 +758,7 @@ class ColumnExpression(Expression):
         if param_prob is not None:
             prob.update(param_prob)
 
-        if column is None:
+        if column is None and table.columns:
             column = random.choice(table.columns)
         current_dtype = column.dtype
         value = f"{table.name}.{column.name}"
@@ -781,19 +781,19 @@ class ColumnExpression(Expression):
         col_expr = copy.deepcopy(self)
         mutation_type = random.choice(["change_val", "apply_formula", "apply_cast", "apply_agg", "change_tbl"])
 
-        if mutation_type == "change_val":
+        if mutation_type == "change_val" and col_expr.table.columns:
             column = random.choice(col_expr.table.columns)
             col_expr.value = f"{table.name}.{column.name}"
 
-        elif mutation_type == "apply_formula":
+        elif mutation_type == "apply_formula" and col_expr.table.columns:
             current_dtype = random.choice(col_expr.table.columns).dtype 
             col_expr.value, _ = apply_random_formula(col_expr.value, current_dtype) 
 
-        elif mutation_type == "apply_cast":
+        elif mutation_type == "apply_cast" and col_expr.table.columns:
             current_dtype = random.choice(col_expr.table.columns).dtype 
             col_expr.value, _ = apply_random_cast(col_expr.value, current_dtype)
 
-        elif mutation_type == "apply_agg":
+        elif mutation_type == "apply_agg" and col_expr.table.columns:
             current_dtype = random.choice(col_expr.table.columns).dtype 
             col_expr.value, _ = apply_random_aggregate_function(col_expr.value, current_dtype)
 
@@ -1133,7 +1133,7 @@ class Table(SQLNode):
             idx = random.randrange(len(table.columns))
             del table.columns[idx]
 
-        elif mutation_type == "mutate_col":
+        elif mutation_type == "mutate_col" and table.columns:
             col = random.choice(table.columns)
             col.mutate()
 
@@ -1282,20 +1282,15 @@ class Insert(SQLNode):
     
     def mutate(self) -> "Insert":
         insert = copy.deepcopy(self)
-        mutation_type = random.choice(["change_val", "change_tbl", "remove_col", "toggle_full", "toggle_default"])
+        mutation_type = random.choice(["change_val", "change_tbl", "toggle_full", "toggle_default"])
 
         if mutation_type == "change_tbl":
             insert.table = insert.table.mutate()
 
-        elif mutation_type == "change_val":
+        elif mutation_type == "change_val" and insert.values and insert.columns:
             row_idx = random.randint(0, len(insert.values) - 1)
             col_idx = random.randint(0, len(insert.columns) - 1)
             insert.values[row_idx][col_idx] = random_value(insert.columns[col_idx].dtype)
-
-        elif mutation_type == "remove_col":
-            col_idx = random.randint(0, len(insert.columns) - 1)
-            del insert.values[:][col_idx]
-            del insert.columns[col_idx]
 
         elif mutation_type == "toggle_full":
             insert.full = not insert.full
@@ -1361,7 +1356,7 @@ class Update(SQLNode):
         if mutation_type == "change_tbl":
             update.table = update.table.mutate()
 
-        elif mutation_type == "change_val":
+        elif mutation_type == "change_val" and update.columns:
             col_idx = random.randint(0, len(update.columns) - 1)
             update.values[col_idx] = random_value(update.columns[col_idx].dtype)
 
@@ -1479,12 +1474,12 @@ class Replace(SQLNode):
         if mutation_type == "change_tbl":
             replace.table = replace.table.mutate()
 
-        elif mutation_type == "change_val":
+        elif mutation_type == "change_val" and replace.values and replace.columns:
             row_idx = random.randint(0, len(replace.values) - 1)
             col_idx = random.randint(0, len(replace.columns) - 1)
             replace.values[row_idx][col_idx] = random_value(replace.columns[col_idx].dtype)
 
-        elif mutation_type == "remove_col":
+        elif mutation_type == "remove_col" and replace.columns:
             col_idx = random.randint(0, len(replace.columns) - 1)
             del replace.values[:][col_idx]
             del replace.columns[col_idx]
@@ -1715,7 +1710,7 @@ class Select(SQLNode):
             "from_clause", "toggle_asterisk", "toggle_omit"
         ])
 
-        if mutation_type == "expressions" and not select.asterisk and not select.omit:
+        if mutation_type == "expressions" and not select.asterisk and not select.omit and select.columns:
             col = random.choice(select.columns)
             expr_type = random.choice(["simple", "agg", "literal"])
             if expr_type == "simple":
@@ -1824,7 +1819,7 @@ class With(SQLNode):
         elif mutation_type == "toggle_recursive":
             w.recursive = not w.recursive
 
-        elif mutation_type == "add_cte":
+        elif mutation_type == "add_cte" and w.querys:
             new_name = random_name("with")
             new_query = random.choice(w.querys).mutate()
             w.names.append(new_name)
@@ -1930,7 +1925,7 @@ class VirtualTable(Table):
         if mutation_type == "rename":
             vt.name += f"_{random.choice(['v2', 'alt', 'x'])}"
 
-        elif mutation_type == "change_col" and vt.vtype == "fts4":
+        elif mutation_type == "change_col" and vt.vtype == "fts4" and vt.columns:
             col = random.choice(vt.columns)
             col.mutate()
 
@@ -1992,7 +1987,7 @@ class Index(SQLNode):
         elif mutation_type == "toggle_unique":
             idx.unique = not idx.unique
 
-        elif mutation_type == "change_col" and table is not None:
+        elif mutation_type == "change_col" and table is not None and col_names:
             col_names = table.get_col_names()
             if col_names:
                 num_cols = random.randint(1, min(len(col_names), 3))

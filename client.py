@@ -3,7 +3,7 @@ import logging
 from bugs import BUGS
 from tqdm import tqdm
 import generator as gen
-from metric import get_coverage, metric, coverage_score, get_error
+from metric import get_coverage, metric, coverage_score, save_error
 
 logging.disable(logging.ERROR) 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -12,11 +12,11 @@ LOCAL = False
 SQLITE_VERSIONS = ["sqlite3-3.26.0", "sqlite3-3.39.4"]
 DOCKER_IMAGE = "theosotr/sqlite3-test"
 
-def coverage_test(sql_query):
+def coverage_test(sql_query, db="test.db"):
     """
     Test coverage for sqlite3-3.26.0
     """
-    commands = [f"./sqlite3 test.db \"{query}\"" for query in sql_query]
+    commands = [f"./sqlite3 {db} \"{query}\"" for query in sql_query]
     commands.append("gcov -b -o . sqlite3-sqlite3.c") # gcov to get coverage
     command_str = " ; ".join(commands)
     client = docker.from_env()
@@ -71,6 +71,46 @@ def test(query):
     else:
         logging.info("No bug detected.")
 
+import random
+import re
+
+SQL_KEYWORDS = ["SELECT", "FROM", "WHERE", "ORDER BY", "GROUP BY", "JOIN", 
+                "LEFT JOIN", "INNER JOIN", "LIMIT", "OFFSET", "CREATE", "TABLE", 
+                "VIRTUAL", "VIEW", "BETWEEN", "AS", "IN", "LIKE", "AND", "OR",
+                "MATCH", "EXISTS", "EXPLAIN", "BEGIN", "END", "COMMIT", "ROLLBACK",
+                "IS", "NOT", "NULL", "CASE", "WHEN", "THEN", "ELSE", "RENAME", "COLUMN",
+                "VALUES", "TO", "INSERT", "INTO", "UPDATE", "DELETE", "DEFAULT", "SET"
+                "REPLACE", "WITH", "USING", "INDEX", "ON", "UNIQUE", "TRIGGER",
+                "BEFORE", "AFTER", "TEMP", "IF", "FOR", "EACH", "ROW", "PRAGMA"]
+OPERATORS = ["=", "!=", "<", ">", "<=", ">=", "LIKE"]
+
+def mutate_sql(sql: str) -> str:
+    mutations = [mutate_keyword, mutate_constant, mutate_operator, mutate_structure]
+    mutation = random.choice(mutations)
+    return mutation(sql)
+
+def mutate_keyword(sql: str) -> str:
+    if any(kw in sql.upper() for kw in SQL_KEYWORDS):
+        old_kw = random.choice([kw for kw in SQL_KEYWORDS if kw in sql.upper()])
+        new_kw = random.choice(SQL_KEYWORDS)
+        return re.sub(old_kw, new_kw, sql, flags=re.IGNORECASE)
+    return sql
+
+def mutate_constant(sql: str) -> str:
+    return re.sub(r"(?<!\w)(\d+)(?!\w)", lambda m: str(int(m.group(0)) + random.randint(-5, 5)), sql)
+
+def mutate_operator(sql: str) -> str:
+    for op in OPERATORS:
+        if op in sql:
+            new_op = random.choice(OPERATORS)
+            return sql.replace(op, new_op, 1)
+    return sql
+
+def mutate_structure(sql: str) -> str:
+    # Randomly insert a LIMIT clause
+    if "LIMIT" not in sql.upper():
+        return sql.strip().rstrip(";") + f" LIMIT {random.randint(1, 100)};"
+    return sql
 
 if __name__ == "__main__":
     SQL_TEST_QUERY = [
@@ -79,21 +119,24 @@ if __name__ == "__main__":
         "INSERT INTO t0 (c0) VALUES (0), (1), (2), (NULL), (3);",
         "SELECT c0 FROM t0 WHERE t0.c0 IS NOT 1;",
     ]
-    with open("test/query_test.sql", "r") as f:
+    d = "test/best/_query_52.895.sql"
+    d = "test/query_test.sql"
+    with open(d, "r") as f:
         sql = f.read()
         FULL = [stmt.strip() + ";" for stmt in sql.split(";") if stmt.strip()]
 
+    #q = random.choice(FULL)
+    #print(q)
+    #print(mutate_sql(q))
+
     lines_c, branch_c, taken_c, calls_c, msg = coverage_test(FULL)
     combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
-
-    print(get_error(msg))
     
-    if "Error" in msg:
-        with open("test/" + f"error/error.txt", "w") as f:
-            for err in get_error(msg):
-                f.write(f"Message: {err}\n")
+    save_error(msg, "test/error/error_test.txt")
+
     #test(SQL_TEST_QUERY)
-    print()
+    a, b, c, d, _ = get_coverage(msg)
+    print(a, b, c, d)
     #print(metric(SQL_TEST_QUERY))
     assert False
     BUGS[0:34]

@@ -1,8 +1,7 @@
 import re
 from collections import Counter
-from generator import randomQueryGen
 from typing import List, Union
-from config import PROB_TABLE
+from config import ERROR 
 
 def metric(query: Union[List, str]) -> Counter:
     if isinstance(query, List):
@@ -31,9 +30,10 @@ def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.5, 1.0)):
         weights[1] * branches
     ) / 2.0
     
-def get_error(result: str) -> str:
-    return re.findall(r"(Error:.*)", result)
-
-if __name__ == "__main__":
-    query = randomQueryGen(PROB_TABLE, debug=False, cycle=1000)
-    print(metric(query))
+def save_error(msg: str, save: str) -> str:
+    if "Error" in msg and ERROR:
+        with open(save, "w") as f:
+            errors = re.findall(r"(Error:.*)\n", msg)
+            f.write(f"Total Errors: {len(errors)}\n")
+            for err in errors:
+                f.write(f"{err}\n")

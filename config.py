@@ -1,6 +1,7 @@
 SEED = 42 # random seed
 TEST_FOLDER = "test/" # folder to save bugs and queries
 COMPACT = 5000 # compacting query length
+ERROR = False # save errors in metric.py
 
 PROB_TABLE = {
     "comp_nullc": 0.05, "comp_callc": 0.9,
