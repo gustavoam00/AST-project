@@ -5,7 +5,7 @@ from typing import List, Optional, Union, Dict
 from config import SEED
 import copy
 
-random.seed(SEED)
+# random.seed(SEED)
 INSIDE_INDEX = False
 VIRTUAL = {
     "types": ["rtree", "fts4", "dbstat"],
@@ -419,8 +419,6 @@ class Between(Predicate):
         
         v1 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
         v2 = random_value(col.dtype, prob["bet_nullc"], prob["bet_callc"])
-        # for some reason v1 or v2 can be 'NULL' not sure from where
-        # low, high = sorted([v1, v2], key=lambda x: float(x)) 
         low, high = sorted([v1, v2])
         return Between(col, low, high, table_name)
     
@@ -1050,7 +1048,7 @@ class Column:
 
     @staticmethod
     def random(name: Optional[str] = None, param_prob:Dict[str, float] = None) -> "Column":
-        prob = {"pk_p":0.0, "unq_p":0.05, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1}
+        prob = {"pk_p":0.0, "unq_p":0.005, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1}
         if param_prob is not None:
             prob.update(param_prob)
             
@@ -1356,12 +1354,7 @@ class Update(SQLNode):
         
         candidate_cols = [col for col in table.columns if not (col.unique or col.primary_key)]
         if not candidate_cols: #no non-unique columns, update likely to crash
-            #return None
             candidate_cols = col
-            # where = Where.random(table)
-            # vals = [random_value(table.columns[0].dtype,null_chance = 0, callable_chance=1),]
-            # cols = [table.columns[0],]
-            # return Update(table=table.name, columns=cols, values=vals, where = where)
         
         num_cols = random.randint(1, len(candidate_cols))
         sample_cols = random.sample(candidate_cols, num_cols)
@@ -1629,7 +1622,6 @@ class Select(SQLNode):
     offset: Optional[int] = None
     columns: Optional[List[Column]] = None
     table_name: Optional[str] = None
-    #having: #this one is confusing, its like a group level condition generally after a group by
 
     def sql(self) -> str: 
         base = "SELECT "
@@ -1711,7 +1703,6 @@ class Select(SQLNode):
         order_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["ord_p"]) else None
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
         offset = random.randint(1,20) if flip(prob["offst_p"]) and limit else None
-        table_name = table.name
         
         if other_tables and flip(prob["join_p"]):
             left = table
@@ -1887,7 +1878,7 @@ class View(Table):
     
     @staticmethod
     def random(table: Table, other_tables: List[Table] = None, param_prob: Dict[str,float] = None) -> "View":
-        prob = {"tmp_p":0.1, "one_view_p":0, "*_p":0.5, "cols_view_p":1, "alias_view_p":0, "rexp_view_p":0}
+        prob = {"tmp_p":0.01, "one_view_p":0, "*_p":0.5, "cols_view_p":1, "alias_view_p":0, "rexp_view_p":0}
         if param_prob is not None:
             prob.update(param_prob)
         prob.update({
@@ -1999,7 +1990,7 @@ class Index(SQLNode):
         if isinstance(table, View):
             return None # cannot index on View
         
-        prob = {"uniq_p":0.01, "where_p": 0.4, "rexp_index_p":0, "time_index_p":0, "std_index_p": 1}
+        prob = {"uniq_p":0.005, "where_p": 0.4, "rexp_index_p":0, "time_index_p":0, "std_index_p": 1}
         if param_prob is not None:
             prob.update(param_prob)
         prob.update({
@@ -2007,15 +1998,13 @@ class Index(SQLNode):
             "time_p": prob["time_index_p"],
             "std_p": prob["std_index_p"],
         })
-        
-        INSIDE_INDEX = True
+          
         name = random_name("idx")
         col_names = table.get_col_names()
         num_cols = random.randint(1, min(len(col_names), 3))
         cols = random.sample(col_names, num_cols)
         unique = flip(prob["uniq_p"])
         where = Where.random(table, no_sub=True, param_prob=prob) if flip(prob["where_p"]) else None
-        INSIDE_INDEX = False
         return Index(name=name, table=table.name, columns=cols, unique=unique, where=where)
     
     def mutate(self, table: Optional["Table"] = None) -> "Index":
@@ -2225,7 +2214,17 @@ class Pragma(SQLNode):
             ("collation_list", ""),
             ("database_list", ""),
             ("encoding", random.choice(["", "\'UTF-8\'", "\'UTF-16\'", "\'UTF-16le\'", "\'UTF-16be\'"])),
-            ("function_list", "")
+            ("function_list", ""),
+            ("recursive_triggers", random.choice(["ON", "OFF"])),
+            ("case_sensitive_like", random.choice(["ON", "OFF"])),
+            ("secure_delete", random.choice(["0", "1"])),
+            ("page_size", str(random.choice([1024, 2048, 4096, 8192]))),
+            ("max_page_count", str(random.randint(1000, 100000))),
+            ("user_version", str(random.randint(0, 4294967295))),
+            ("schema_version", str(random.randint(0, 4294967295))),
+            ("wal_autocheckpoint", str(random.randint(0, 1000))),
+            ("journal_size_limit", str(random.randint(0, 104857600))),
+            ("reverse_unordered_selects", random.choice(["ON", "OFF"])),
         ]
 
         name, value = random.choice(pragmas)
@@ -2345,6 +2344,10 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
     save_points = []
     for i in range(cycle):
         # try:
+            if flip(prob["pragma"]) or debug:
+                pragma = Pragma.random()
+                query += pragma.sql() + ";\n"
+                
             if flip(prob["table"]) or tables == [] or debug:
                 new_table = Table.random()
                 tables.append(new_table)
@@ -2415,10 +2418,6 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                 select2 = Select.random(table, other_tables=tables, param_prob=prob)
                 query += select2.sql() + ";\n"
                 
-            if flip(prob["pragma"]) or debug:
-                pragma = Pragma.random()
-                query += pragma.sql() + ";\n"
-                
             if flip(prob["control"]) or debug:
                 transaction = TransactionControl.random(transaction_active=transaction_active, save_points=save_points, param_prob=prob)
                 transaction_active = transaction.transaction_active
@@ -2434,6 +2433,8 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                 
             if flip(prob["drop_tbl"]):
                 table = random.choice(tables + views + triggers + indexes)
+                if getattr(table, "viewed", False):
+                    continue
                 droptable = DropTable.random(table, param_prob=prob)
                 query+=droptable.sql() + ";\n"
                 if not droptable.fake_table:
