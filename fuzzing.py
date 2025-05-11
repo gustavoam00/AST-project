@@ -2,7 +2,7 @@ from tqdm import tqdm
 from client_local import coverage_test, reset, LOCAL
 from metric import coverage_score, save_error
 import generator as gen
-import random
+import random, re
 from config import TEST_FOLDER, SEED, PROB_TABLE
 
 random.seed(SEED)
@@ -18,40 +18,56 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("With", gen.With, prob=x),
     Fuzzing("Trigger", gen.Trigger, mod_table=True, commit=True, no_virt=True, prob=x),
     Fuzzing("Index", gen.Index, no_virt=True, commit=True, prob=x),
-    Fuzzing("Pragma", gen.Pragma, needs_table=False, need_prob=False),
     Fuzzing("Delete", gen.Delete, mod_table=True, commit=True, prob=x), 
-    Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, prob=x) 
+    Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, prob=x),
 ]
 
-def mutating_string(query: str) -> str:
+SQL_KEYWORDS = ["SELECT", "FROM", "WHERE", "ORDER BY", "GROUP BY", "JOIN", 
+                "LEFT JOIN", "INNER JOIN", "LIMIT", "OFFSET", "CREATE", "TABLE", 
+                "VIRTUAL", "VIEW", "BETWEEN", "AS", "IN", "LIKE", "AND", "OR",
+                "MATCH", "EXISTS", "EXPLAIN", "BEGIN", "END", "COMMIT", "ROLLBACK",
+                "IS", "NOT", "NULL", "CASE", "WHEN", "THEN", "ELSE", "RENAME", "COLUMN",
+                "VALUES", "TO", "INSERT", "INTO", "UPDATE", "DELETE", "DEFAULT", "SET"
+                "REPLACE", "WITH", "USING", "INDEX", "ON", "UNIQUE", "TRIGGER",
+                "BEFORE", "AFTER", "TEMP", "IF", "FOR", "EACH", "ROW", "PRAGMA", ""]
+OPERATORS = ["=", "!=", "<", ">", "<=", ">=", "LIKE"]
 
+def mutate_query(query: str) -> str:
+    mutations = [mutate_keyword, mutate_values, mutate_operator]
+    mutation = random.choice(mutations)
+    return mutation(query)
+
+def mutate_keyword(query: str) -> str:
+    if any(w in query for w in SQL_KEYWORDS):
+        words = [w for w in SQL_KEYWORDS if w in query]
+        if words:
+            old_w = random.choice(words)
+            new_w = random.choice(SQL_KEYWORDS)
+            return re.sub(old_w, new_w, query)
     return query
 
-def compact_queries(strings: list[str], max_length: int) -> list[str]:
-    result = []
-    current = ""
+def mutate_values(query: str) -> str:
+    values = re.findall(r'\b(?:[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*|[a-z_][a-z0-9_]*|\d+)\b', query)
+    if values:
+        old_val = random.choice(values)
+        new_val = random.choice(values)
+        return re.sub(old_val, new_val, query)
+    return query
 
-    for s in strings:
-        if len(current) + len(s) <= max_length:
-            current += s
-        elif current:
-            result.append(current)
-            current = s
-        else:
-            current = s
-
-    if current:
-        result.append(current)
-
-    return result
+def mutate_operator(sql: str) -> str:
+    for op in OPERATORS:
+        if op in sql:
+            new_op = random.choice(OPERATORS)
+            return sql.replace(op, new_op, 1)
+    return sql
 
 class Fuzzing:
     """
     Fuzzing pipeline 
     """
-    def __init__(self, name, gen_fn, threshold=10, max=100, needs_table=True, other_tables=False, 
+    def __init__(self, name: str, gen_fn: gen.SQLNode, threshold=10, max=100, needs_table=True, other_tables=False, 
                  gen_table=False, rem_table=False, need_prob=True, no_virt=False, mod_table=False, 
-                 commit=False, prob=None, corpus=[]):
+                 commit=False, prob=None, corpus: list[gen.SQLNode] = []):
         self.name = name
         self.gen_fn = gen_fn
         self.threshold = threshold
@@ -69,7 +85,7 @@ class Fuzzing:
         self.valid = 0
         self.invalid = 0
 
-    def get_random(self, table: gen.Table, tables: list) -> "gen.SQLNode":
+    def get_random(self, table: gen.Table, tables: list[gen.Table]) -> gen.SQLNode:
         '''
         selects the parameters depending if it has table, other_tables, param_prob  
         '''
@@ -89,17 +105,19 @@ class Fuzzing:
                 node = self.gen_fn.random()
         return node
 
-    def gen_valid_query(self, query: list, table: gen.Table, tables: list, mut: bool, active: bool, db: str = "test.db") -> tuple[int, list[str], gen.SQLNode]:
+    def gen_valid_query(self, table: gen.Table, tables: list, mut: bool, active: bool) -> tuple[list[str], gen.SQLNode, bool]:
         '''
-        valid queries are queries that returns some coverage > 0
+        valid queries are queries that are not None
         '''
         for _ in range(self.max):
-
             if self.corpus and mut:
                 node = self.mutate() # runs mutation in the second run
             else:
                 node = self.get_random(table, tables)
-            if not node: continue
+
+            if not node: 
+                self.invalid += 1
+                continue
 
             if self.commit or active:
                 new_transact = random.choices([gen.TransactionControl.random(transaction_active=active, param_prob=self.prob).sql() + ";", ""], weights=[0.2, 0.8], k=1)[0]
@@ -113,62 +131,57 @@ class Fuzzing:
             else:
                 new_query = random.choices(["EXPLAIN " + node.sql() + ";", node.sql() + ";"], weights=[0.2, 0.8], k=1)[0]
             
-            if LOCAL: db = "temp.db"
-            lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query + [new_query], db=db)
-            cov_valid = coverage_score(lines_c, branch_c, taken_c, calls_c)
+            if self.corpus and mut:
+                new_query = mutate_query(new_query) # mutate on string
 
-            save_error(msg, TEST_FOLDER + f"error/error_valid_{cov_valid}_{random.randint(0, 10000)}.txt")
+            self.valid += 1
+            return [new_query], node, active
 
-            if cov_valid > 0:
-                self.valid += 1
-                return cov_valid, [new_query], node, active
-            
-            self.invalid += 1
-            
-        return 0, [], None, active
+        return [], None, active
 
-    def generate(self, cov: float, c, init_query: list, tables: list, nodes: list, 
-                 find_best: bool = False, desc: str = "", mut: bool = False, active: bool = False):
+    def generate(self, cov: float, c: tuple[float], init_query: list[str], tables: list[gen.Table], corpus: list[gen.SQLNode], threshold_overwrite: int,
+                 desc: str = "", mut: bool = False, active: bool = False) -> tuple[float, tuple[float], list[str], list[gen.Table], list[gen.SQLNode], str, bool]:
         '''
-        first test if the query is valid (with init_query) and then test it on the entire query (combined_query)
+        mut == False: creates/takes random table and then call random function in generator.py with table 
+        mut == True : randomly select a SQLNode from the corpus and mutate it 
+            structural (on SQLNode): self.mutate()
+            syntax     (on String) : mutate_query(new_query)
         '''
-        pbar = tqdm(desc=f"{self.name:<15} (cov={cov:7.4f}) (query={len(init_query):03})")
+        self.threshold = threshold_overwrite
+        name = "Mutate" if mut else self.name
+        pbar = tqdm(desc=f"{(name):<12} (lines_cov={c[0]:5.4f}) (branch_cov={c[1]:5.4f}) (query={len(init_query):03}) {desc:<15}")
 
         tries = 0
         best_cov = cov
         best_c = c # all coverages (lines, branches, taken, calls)
         best_msg = ""
         new_query = init_query
-        updated_tables = list(tables) 
-        self.corpus = nodes 
-        active = active # transation active?
+        updated_tables = tables
+        self.corpus = corpus # all the SQLNode in the query
+        active = active # transation active
 
         while tries < self.threshold:
-
-            #reset() # for local: resets the test.db and sqlite3.c.gcov
 
             if tables:
                 table = random.choice(updated_tables)
                 while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
                        (self.no_virt and isinstance(table, gen.VirtualTable))):
                     table = random.choice(updated_tables)
-                cov_valid, valid_query, node, val_active = self.gen_valid_query(init_query, table, updated_tables, mut, active)
+                valid_query, node, val_active = self.gen_valid_query(table, updated_tables, mut, active)
                 valid_query = valid_query + random.choices([[gen.Optimization.random(table).sql() + ";"], []], weights=[0.05, 0.95], k=1)[0]
             else:
-                cov_valid, valid_query, node, val_active = self.gen_valid_query(init_query, None, updated_tables, mut, active)
+                valid_query, node, val_active = self.gen_valid_query(None, updated_tables, mut, active)
             
-            if cov_valid == 0:
+            if not node:
                 continue
-
-            #reset() # for local: resets the test.db and sqlite3.c.gcov
 
             if LOCAL:
                 test_query = valid_query
             else:
-                test_query = (init_query if find_best else new_query) + valid_query
+                test_query = new_query + valid_query
             lines_c, branch_c, taken_c, calls_c, msg = coverage_test(test_query)
             combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
-            combined_query = (init_query if find_best else new_query) + valid_query
+            combined_query = new_query + valid_query
 
             if combined_cov > best_cov:
                 best_cov = combined_cov
@@ -181,7 +194,7 @@ class Fuzzing:
                 with open(TEST_FOLDER + f"query_test.sql", "w") as f:
                     f.write("\n".join(new_query))
 
-                save_error(msg, TEST_FOLDER + f"error/error_{cov}_{random.randint(0, 10000)}.txt")
+                # save_error(msg, TEST_FOLDER + f"error/error_{cov}_{random.randint(0, 10000)}.txt")
                 
                 if "EXPLAIN" not in valid_query[0] and not mut:
                     if self.rem_table: # alter table
@@ -191,7 +204,7 @@ class Fuzzing:
                         init_query += valid_query
 
                 tries = 0
-                pbar.set_description(f"{self.name:<15} (cov={best_cov:7.4f}) (query={len(combined_query):03})")
+                pbar.set_description(f"{(name):<12} (lines_cov={lines_c:7.4f}) (branch_cov={branch_c:7.4f}) (query={len(combined_query):03}) {desc:<15}")
             else:
                 tries += 1
 
@@ -212,47 +225,55 @@ class Fuzzing:
         return None
 
 def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list[Fuzzing], 
-                 repeat: int = 1, save: bool = True, mut_threshold: int = 15, desc: str = ""):
+                 repeat: int = 1, save: bool = True, threshold: int = 10, desc: str = ""):
     cov = init_cov
+    c = (0, 0, 0, 0) # all coverages (lines, branches, taken, calls)
     query = init_query
     tables = init_tables
-    nodes = init_nodes
-    c = (0, 0, 0, 0)
+    corpus = init_nodes
+    active = False # transation active
+
     total_valid = 0
     total_invalid = 0
-    active = False
 
-    reset()
+    reset() # for local: resets the test.db and sqlite3.c.gcov
     for i in range(repeat):
+        print(f"Loop {i}")
         for stage in fuzz_pipeline:
-            cov, c, query, tables, nodes, msg, active = stage.generate(cov, c, query, tables, nodes, desc=desc, active=active)
-            old_threshold = stage.threshold
-            stage.threshold = mut_threshold
-            cov, c, query, tables, nodes, msg, active = stage.generate(cov, c, query, tables, nodes, desc=desc, active=active, mut=True)
-            stage.threshold = old_threshold
+            stage.threshold = threshold
+            cov, c, query, tables, corpus, msg, active = stage.generate(cov, c, query, tables, corpus, threshold, desc=desc, active=active)
+            
+            # mutation
+            cov, c, query, tables, corpus, msg, active = stage.generate(cov, c, query, tables, corpus, (i+2)*threshold, desc=desc, active=active, mut=True)
+            stage.threshold = threshold
+
             total_valid += stage.valid
             total_invalid += stage.invalid
+
         random.shuffle(fuzz_pipeline)
 
+        pragma = set()
+        while len(pragma) < 10: # creates 10 unique pragma settings
+            pragma.add(gen.Pragma.random().sql() + ";")
+        query.extend(pragma)
+
         reset()
-        lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query)
+        lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query, timeout=None)
         c = (lines_c, branch_c, taken_c, calls_c)
         cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
         if save:
-            with open(TEST_FOLDER + f"results/{desc}_save_{cov}.txt", "w") as f:
-                f.write(f"Best Coverage: {cov}, {c}, Valid/Invalid{total_valid}/{total_invalid}\n")
+            with open(TEST_FOLDER + f"results/{desc}_save_{lines_c:5.4f}.txt", "w") as f:
+                f.write(f"Best Coverage: {cov:5.4f}, {c}, Valid/Invalid: {total_valid}/{total_invalid}\n")
                 f.write(f"Best Query: {query}\n")
                 f.write(f"Tables: {tables}\n")
-            save_error(msg, TEST_FOLDER + f"results/{desc}_error_{cov}.txt")
-            with open(TEST_FOLDER + f"results/{desc}_query_{cov}.sql", "w") as f:
+            save_error(msg, TEST_FOLDER + f"results/{desc}_error_{lines_c:5.4f}.txt")
+            with open(TEST_FOLDER + f"results/{desc}_query_{lines_c:5.4f}.sql", "w") as f:
                 f.write("\n".join(query))
 
-    return cov, c, query, tables, nodes
+    return cov, c, query, tables, corpus
 
 if __name__ == "__main__":
-    #prob = {k: 0.5 for k in PROB_TABLE}
     pipeline = FUZZING_PIPELINE(PROB_TABLE)
-    pipeline = [pipeline[0], pipeline[4], pipeline[5]]
-    cov, c, query, tables, nodes = run_pipeline(0, [], [], [], pipeline, repeat=5, save=False)
+    cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=5)
     print(f"Final Coverage: {cov}")

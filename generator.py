@@ -1503,7 +1503,7 @@ class Replace(SQLNode):
     
     def mutate(self) -> "Replace":
         replace = copy.deepcopy(self)
-        mutation_type = random.choice(["change_val", "change_tbl", "remove_col", "toggle_full", "toggle_default"])
+        mutation_type = random.choice(["change_val", "change_tbl", "toggle_full", "toggle_default"])
 
         if mutation_type == "change_tbl":
             replace.table = replace.table.mutate()
@@ -1512,11 +1512,6 @@ class Replace(SQLNode):
             row_idx = random.randint(0, len(replace.values) - 1)
             col_idx = random.randint(0, len(replace.columns) - 1)
             replace.values[row_idx][col_idx] = random_value(replace.columns[col_idx].dtype)
-
-        elif mutation_type == "remove_col" and replace.columns:
-            col_idx = random.randint(0, len(replace.columns) - 1)
-            del replace.values[:][col_idx]
-            del replace.columns[col_idx]
 
         elif mutation_type == "toggle_full":
             replace.full = not replace.full
