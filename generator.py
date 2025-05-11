@@ -1716,43 +1716,43 @@ class Select(SQLNode):
         ])
 
         if mutation_type == "expressions" and not select.asterisk and not select.omit:
-            col = random.choice(sel.columns)
+            col = random.choice(select.columns)
             expr_type = random.choice(["simple", "agg", "literal"])
             if expr_type == "simple":
-                sel.expressions.append(f"{col.name}")
+                select.expressions.append(f"{col.name}")
             elif expr_type == "agg":
-                sel.expressions.append(f"MAX({col.name})")
+                select.expressions.append(f"MAX({col.name})")
             else:
-                sel.expressions.append(str(random.randint(1, 100)))
+                select.expressions.append(str(random.randint(1, 100)))
 
-        elif mutation_type == "toggle_where" and sel.columns:
-            sel.where = Where.random(sel.from_clause if isinstance(sel.from_clause, Table) else sel.from_clause.left_table) if not sel.where else None
+        elif mutation_type == "toggle_where" and select.columns:
+            select.where = Where.random(select.from_clause if isinstance(select.from_clause, Table) else select.from_clause.left_table) if not select.where else None
 
         elif mutation_type == "change_where":
-            sel.where = sel.where.mutate() if sel.where else None
+            select.where = select.where.mutate() if select.where else None
 
-        elif mutation_type == "group_by" and sel.columns:
-            sel.group_by = random.sample(sel.columns, k=min(1, len(sel.columns)))
+        elif mutation_type == "group_by" and select.columns:
+            select.group_by = random.sample(select.columns, k=min(1, len(select.columns)))
 
-        elif mutation_type == "order_by" and sel.columns:
-            sel.order_by = random.sample(sel.columns, k=min(1, len(sel.columns)))
+        elif mutation_type == "order_by" and select.columns:
+            select.order_by = random.sample(select.columns, k=min(1, len(select.columns)))
 
         elif mutation_type == "limit":
-            sel.limit = random.randint(1, 100)
+            select.limit = random.randint(1, 100)
 
-        elif mutation_type == "offset" and sel.limit:
-            sel.offset = random.randint(1, 50)
+        elif mutation_type == "offset" and select.limit:
+            select.offset = random.randint(1, 50)
 
         elif mutation_type == "from_clause":
-            sel.from_clause = sel.from_clause.mutate()
+            select.from_clause = select.from_clause.mutate()
 
         elif mutation_type == "toggle_asterisk":
-            sel.asterisk = not sel.asterisk
+            select.asterisk = not select.asterisk
 
         elif mutation_type == "toggle_omit":
-            sel.omit = not sel.omit
+            select.omit = not select.omit
 
-        return sel
+        return select
         
 @dataclass
 class With(SQLNode):
@@ -1883,7 +1883,7 @@ class View(Table):
         elif mutation_type == "toggle_temp":
             view.temp = not view.temp
 
-        elif mutation_type == "change_select":
+        elif mutation_type == "change_select" and view.select:
             view.select = view.select.mutate()
 
         elif mutation_type == "change_col" and view.columns:
@@ -2352,10 +2352,10 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
         
 if __name__ == "__main__":
     table = Table.random()
-    sel = Select.random(table)
-    print(sel.sql())
+    select = Select.random(table)
+    print(select.sql())
     for i in range(5):
-        print(sel.mutate().sql())
+        print(select.mutate().sql())
 
     #print(randomQueryGen(prob, debug=False, cycle=1))
 
