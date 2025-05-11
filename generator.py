@@ -158,6 +158,9 @@ def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
         (f"nullif({expr}, {expr})", "NULL"),
         (f"nullif({expr}, {random_value(dtype, null_chance=0)})", dtype),
         (f"TYPEOF({expr})", "TEXT"),
+        (f"LIKELY({expr})", dtype),
+        (f"UNLIKELY({expr})", dtype),
+        (f"LIKELIHOOD({expr}, 0.5)", dtype),
     ]
 
     if dtype == "TEXT":
