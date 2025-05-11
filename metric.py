@@ -24,11 +24,13 @@ def get_coverage(result: str) -> tuple[float, str]:
     else:
         return 0, 0, 0, 0, "Error: Could not extract coverage info."
     
-def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.5, 1.0)):
+def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.0, 1.0)):
     return (
         weights[0] * lines +
-        weights[1] * branches
-    ) / 2.0
+        weights[1] * branches +
+        weights[2] * taken +
+        weights[3] * calls
+    ) / float(sum(weights))
     
 def save_error(msg: str, save: str) -> str:
     if "Error" in msg and ERROR:

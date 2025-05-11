@@ -4,7 +4,7 @@ from metric import get_coverage, coverage_score, save_error
 
 LOCAL = True
 
-def coverage_test(sql_query, db="test.db"):
+def coverage_test(sql_query, db="test.db", timeout=1):
     """
     Local version of coverage_test
     """
@@ -19,12 +19,15 @@ def coverage_test(sql_query, db="test.db"):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True
+            check=True,
+            timeout=timeout
         )
         return get_coverage(result.stderr + "\n" + result.stdout)
+    except subprocess.TimeoutExpired:
+        return 0, 0, 0, 0, "Error: Timeout"
     except subprocess.CalledProcessError as e:
         logging.error(f"Error running query: {e.stderr}")
-        return (0, str(e.stderr))
+        return 0, 0, 0, 0, str(e.stderr)
 
 def reset():
     reset_cmds = [
