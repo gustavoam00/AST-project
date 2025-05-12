@@ -4,11 +4,58 @@ from typing import List, Union
 from config import ERROR 
 
 def metric(query: Union[List, str]) -> Counter:
+    '''
+    Extracts all words that is in uppercase inside a list or string
+    '''
     if isinstance(query, List):
         query = " ".join(query)
+    query = " ".join(query.split(";"))
     words = re.sub(r'[^a-zA-Z ]', ' ', query).split()
     upper = [w for w in words if w.isupper()]
     return Counter(upper)
+
+def parse_metric(filepath: str) -> Counter:
+    '''
+    Extracts metrics information of the file at filepath:
+    Metrics:
+        SELECT: 3
+        CASE: 1
+        FROM: 3
+        ...
+    Returns: Counter({"SELECT": 3, "CASE": 1, "FROM": 3, ...})
+    '''
+    metrics = Counter()
+    in_metrics = False
+
+    with open(filepath, 'r') as f:
+        for line in f:
+            line = line.strip()
+
+            if line == "Metrics:":
+                in_metrics = True
+                continue
+
+            if in_metrics:
+                if not line or ":" not in line:
+                    continue
+                try:
+                    key, value = line.split(":")
+                    metrics[key.strip()] = int(value.strip())
+                except ValueError:
+                    continue 
+
+    return metrics
+
+def avg_counter(counters: List[Counter]) -> Counter:
+    all_keys = set().union(*counters)
+
+    n = len(counters)
+    average = Counter({
+        key: sum(c.get(key, 0) for c in counters) / n
+        for key in all_keys
+    })
+
+    return average
 
 def get_coverage(result: str) -> tuple[float, str]:
     lines = re.search(r"Lines executed:([\d.]+)% of (\d+)", result)
@@ -32,13 +79,15 @@ def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.0, 1.0)):
         weights[3] * calls
     ) / float(sum(weights))
     
-def save_error(msg: str, save: str) -> str:
+def save_error(msg: str, save: str) -> int:
+    errors = []
     if "Error" in msg and ERROR:
         with open(save, "w") as f:
             errors = re.findall(r"(Error:.*)\n", msg)
             f.write(f"Total Errors: {len(errors)}\n")
             for err in errors:
                 f.write(f"{err}\n")
+    return len(errors)
 
 def get_error(msg: str) -> str:
     msg = re.findall(r"Error:(.*)\n", msg)
@@ -50,53 +99,47 @@ def get_error(msg: str) -> str:
     return "\n".join(msg)
 
 def sql_cleaner(queries: str) -> list[str]:
-    return [stmt.strip() + ";" for stmt in queries.split(";") if stmt.strip() 
+    return [
+        stmt.strip() + ";" for stmt in queries.split(";") if stmt.strip() 
             and "EXPLAIN" not in stmt 
             and "dbstat" not in stmt
             and "date" not in stmt
             and "time" not in stmt 
-            and "PRAGMA" not in stmt]
+            and "collation_list" not in stmt
+            and "function_list" not in stmt
+            and "analysis_limit" not in stmt
+            and "database_list" not in stmt
+            and "ANALYZE" not in stmt
+            and "REINDEX" not in stmt
+            and "VACUUM" not in stmt
+            and "julianday" not in stmt
+    ]
 
-def remove_lines(forwards_file, reference_file, output_file):
-    with open(forwards_file, 'r') as f1, open(reference_file, 'r') as f2:
-        forwards_lines = f1.readlines()
-        reference_lines = f2.readlines()
+def remove_lines(result1: list[str], result2: list[str]):
+    length = min(len(result1), len(result2))
+    keep = [True] * len(result1)
 
-    length = min(len(forwards_lines), len(reference_lines))
-    keep = [True] * len(forwards_lines)
-
-    # Forward comparison
+    # forward comparison
     for i in range(length):
-        if forwards_lines[i] == reference_lines[i]:
+        if result1[i] == result2[i]:
             keep[i] = False
 
-    # Backward comparison
+    # backward comparison
     for i in range(1, length + 1):
-        if forwards_lines[-i] == reference_lines[-i]:
+        if result1[-i] == result2[-i]:
             keep[-i] = False
 
-    result_lines = [line for line, k in zip(forwards_lines, keep) if k]
-
-    with open(output_file, 'w') as out:
-        out.writelines(result_lines)
+    result_lines = [line for line, k in zip(result1, keep) if k]
 
     return result_lines
 
-def remove_common_lines(file1_path, file2_path, out1_path, out2_path):
-    with open(file1_path, 'r') as f1, open(file2_path, 'r') as f2:
-        lines1 = f1.readlines()
-        lines2 = f2.readlines()
-
-    set1 = set(lines1)
-    set2 = set(lines2)
+def remove_common_lines(result1: list[str], result2: list[str]):
+    set1 = set(result1)
+    set2 = set(result2)
     common = set1 & set2
 
-    unique1 = [line for line in lines1 if line not in common]
-    unique2 = [line for line in lines2 if line not in common]
-
-    with open(out1_path, 'w') as out1, open(out2_path, 'w') as out2:
-        out1.writelines(unique1)
-        out2.writelines(unique2)
+    unique1 = [line for line in result1 if line not in common]
+    unique2 = [line for line in result2 if line not in common]
 
     return unique1, unique2
     
