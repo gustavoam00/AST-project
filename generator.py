@@ -2,68 +2,16 @@ import random
 import string
 from dataclasses import dataclass, field
 from typing import List, Optional, Union, Dict
-from config import SEED
+from config import SEED, OPS, SQL_TYPES, TIME, VALUES, VIRTUAL
 import copy
 
 # random.seed(SEED)
 INSIDE_INDEX = False
-VIRTUAL = {
-    "types": ["rtree", "fts4", "dbstat"],
-    "dbstat": [{"name": "TEXT"}, {"path": "TEXT"}, {"pageno": "INTEGER"}, {"pagetype": "TEXT"}, {"ncell": "INTEGER"}, {"payload": "INTEGER"}, {"unused": "INTEGER"}, {"mx_payload": "INTEGER"}, {"pgoffset": "INTEGER"}, {"pgsize": "INTEGER"}, {"schema": "TEXT"}],
-    "rtree": [{"id": "INTEGER", "constraint": "PRIMARY KEY"}, {"minX": "REAL"}, {"maxX": "REAL"}, {"minY": "REAL"}, {"maxY": "REAL"}],
-    "fts4": [{"title": "TEXT"}, {"body": "TEXT"}]
-}
-SQL_TYPES = ["INTEGER", "TEXT", "REAL"]
-SQL_CONSTRAINTS = ["PRIMARY KEY", "UNIQUE", "NOT NULL", "CHECK", "DEFAULT"]
-VALUES = { # put interesting values to test here
-    "INTEGER": [0, 1, -1, 
-                2**31-1, -2**31, 
-                2**63-1, -2**63,
-                999999999999999999999999999999999999999999999999999999999999999999999999,
-                42, 1337,
-                0x7FFFFFFF, 0x80000000,
-                ],
-    "TEXT": ["''", "' '", "'a'", "'abc'", "'" + " "*50 + "'", 
-             #"' OR 1=1; --'", "'\x00\x01\x02'", 
-             #"DROP TABLE test;", #"A"*10000,
-             "'quoted'", "'NULL'",
-             ],
-    "REAL": [0.0, -0.0, 1.0, -1.0,
-             3.14159, 2.71828,
-             #float('inf'), float('-inf'), float('nan'),
-             1e-10, 1e10, 1e308, -1e308,
-             ],
-}
-TIME = {
-    "TIMES": ["'now'",
-            "'2025-01-01 12:00:00'",
-            "'2020-06-15 08:45:00'",
-            "'2000-01-01 00:00:00'",
-            "'2030-12-31 23:59:59'",
-            "'1700000000'",
-    ],
-    "TIME_MODS": [
-            "'+1 day'", "'-2 days'", "'+3 hours'", "'-90 minutes'",
-            "'start of month'", "'start of year'", "'weekday 0'",
-            "'+1 month'", "'-1 year'",
-            "'utc'", "'localtime'",
-    ],
-    "TIME_FORMATS": [
-        "'%Y-%m-%d'", "'%H:%M:%S'", "'%s'", "'%w'", "'%Y %W'", "'%j'", "'%Y-%m-%d %H:%M'"
-    ],
-    "DATES": ['datetime', 'date', 'time', 'julianday', 'strftime'],
-    "CURRENT": ['current_date', 'current_time', 'current_timestamp']
-}
+
 CALLABLE_VALUES = {
     "INTEGER": lambda: random.randint(-10000, 10000),
     "TEXT": lambda: ("'" + random_name(prefix = "v", length=5) + "'"),
     "REAL": lambda: random.uniform(-1e5, 1e5),
-}
-OPS = {
-    "INTEGER": ["=", "!=", ">", "<", ">=", "<="],
-    "TEXT": ["=", "!="],
-    "REAL": ["=", "!=", ">", "<", ">=", "<="],
-    "TYPELESS": ["=", "!="],
 }
 
 def random_name(prefix: str = "x", length: int = 5) -> str:

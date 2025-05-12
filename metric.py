@@ -32,13 +32,15 @@ def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.0, 1.0)):
         weights[3] * calls
     ) / float(sum(weights))
     
-def save_error(msg: str, save: str) -> str:
+def save_error(msg: str, save: str) -> int:
+    errors = []
     if "Error" in msg and ERROR:
         with open(save, "w") as f:
             errors = re.findall(r"(Error:.*)\n", msg)
             f.write(f"Total Errors: {len(errors)}\n")
             for err in errors:
                 f.write(f"{err}\n")
+    return len(errors)
 
 def get_error(msg: str) -> str:
     msg = re.findall(r"Error:(.*)\n", msg)
@@ -50,7 +52,8 @@ def get_error(msg: str) -> str:
     return "\n".join(msg)
 
 def sql_cleaner(queries: str) -> list[str]:
-    return [stmt.strip() + ";" for stmt in queries.split(";") if stmt.strip() 
+    return [
+        stmt.strip() + ";" for stmt in queries.split(";") if stmt.strip() 
             and "EXPLAIN" not in stmt 
             and "dbstat" not in stmt
             and "date" not in stmt
@@ -58,20 +61,23 @@ def sql_cleaner(queries: str) -> list[str]:
             and "collation_list" not in stmt
             and "function_list" not in stmt
             and "analysis_limit" not in stmt
+            and "database_list" not in stmt
             and "ANALYZE" not in stmt
             and "REINDEX" not in stmt
-            and "VACUUM" not in stmt]
+            and "VACUUM" not in stmt
+            and "julianday" not in stmt
+    ]
 
 def remove_lines(result1: list[str], result2: list[str]):
     length = min(len(result1), len(result2))
     keep = [True] * len(result1)
 
-    # Forward comparison
+    # forward comparison
     for i in range(length):
         if result1[i] == result2[i]:
             keep[i] = False
 
-    # Backward comparison
+    # backward comparison
     for i in range(1, length + 1):
         if result1[-i] == result2[-i]:
             keep[-i] = False
