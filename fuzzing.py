@@ -269,7 +269,9 @@ def random_query(repeat: int = 3, save: bool = True):
     reset() # for local: resets the test.db and sqlite3.c.gcov
     query, tables = gen.randomQueryGen(cycle=repeat)
 
-    lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query)
+    print(len(query))
+
+    lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query, timeout=len(query)/10.0)
     c = (lines_c, branch_c, taken_c, calls_c)
     cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 

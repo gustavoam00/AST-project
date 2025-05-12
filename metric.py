@@ -80,6 +80,8 @@ def remove_lines(forwards_file, reference_file, output_file):
     with open(output_file, 'w') as out:
         out.writelines(result_lines)
 
+    return result_lines
+
 def remove_common_lines(file1_path, file2_path, out1_path, out2_path):
     with open(file1_path, 'r') as f1, open(file2_path, 'r') as f2:
         lines1 = f1.readlines()
@@ -95,4 +97,6 @@ def remove_common_lines(file1_path, file2_path, out1_path, out2_path):
     with open(out1_path, 'w') as out1, open(out2_path, 'w') as out2:
         out1.writelines(unique1)
         out2.writelines(unique2)
+
+    return unique1, unique2
     
