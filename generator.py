@@ -801,7 +801,7 @@ class ColumnExpression(Expression):
 
         if mutation_type == "change_val" and col_expr.table.columns:
             column = random.choice(col_expr.table.columns)
-            col_expr.value = f"{table.name}.{column.name}"
+            col_expr.value = f"{self.table.name}.{column.name}"
 
         elif mutation_type == "apply_formula" and col_expr.table.columns:
             current_dtype = random.choice(col_expr.table.columns).dtype 
