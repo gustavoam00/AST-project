@@ -2284,8 +2284,8 @@ class Optimization(SQLNode):
     
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
-def randomQueryGen(query: List[str] = [], param_prob: Dict[str, float] = None, debug: bool = False, 
-                   cycle: int = 3, context: List[Table] = []) -> tuple[List[str], List[Table]]:
+def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, float] = None, debug: bool = False, 
+                   cycle: int = 3, context: Optional[List[Table]] = None) -> tuple[List[str], List[Table]]:
     """
     Randomly generates the entire query, keeping track of the tables to pass as arguments.
     
@@ -2300,30 +2300,34 @@ def randomQueryGen(query: List[str] = [], param_prob: Dict[str, float] = None, d
         
     """
     prob = {   
-        "table":   0.2,
-        "insert":  0.2,
-        "update":  0.2,
-        "replace": 0.2,
-        "delete":  0.2,
-        "alt_ren": 0.2, 
-        "alt_add": 0.2,
-        "alt_col": 0.2,
-        "select1": 0.2,
-        "select2": 0.2,
-        "with":    0.2,
-        "view":    0.2,
-        "index":   0.2,
-        "trigger": 0.2,
-        "pragma":  0.2,
-        "control": 0.01,
-        "optimize":0.01,
-        "drop_tbl":0.05,
+        "table"  :  0.3,
+        "alt_ren":  0.2, 
+        "alt_add":  0.2,
+        "alt_col":  0.2,
+        "select1":  0.4,
+        "select2":  0.2,
+        "with":     0.1,
+        "view":     0.1,
+        "index":    0.1,
+        "trigger":  0.1,
+        "insert":   0.2,
+        "update":   0.2,
+        "replace":  0.2,
+        "delete":   0.2,
+        "pragma":   0.01,
+        "control":  0.01,
+        "optimize": 0.01,
+        "drop_tbl": 0.05,
     }
     
     if param_prob is not None:
         prob.update(param_prob)
     
-    query = query
+    if query is None:
+        query = []
+    if context is None:
+        context = []
+        
     tables = context
     if not context:
         table = Table.random()
@@ -2339,7 +2343,7 @@ def randomQueryGen(query: List[str] = [], param_prob: Dict[str, float] = None, d
     transaction_active = False
     save_points = []
     for i in range(cycle):
-        # try:
+        try:
             if flip(prob["pragma"]) or debug:
                 pragma = Pragma.random()
                 query.append(pragma.sql() + ";")
@@ -2444,18 +2448,17 @@ def randomQueryGen(query: List[str] = [], param_prob: Dict[str, float] = None, d
                         tables.remove(table)
                 
         
-        # except Exception as e:
-        #     print(e)
-        #     i-=1
+        except Exception as e:
+            continue
 
     return query, tables
         
 if __name__ == "__main__":
-    table = Table.random()
-    select = Select.random(table)
-    print(select.sql())
-    for i in range(5):
-        print(select.mutate().sql())
+    # table = Table.random()
+    # select = Select.random(table)
+    # print(select.sql())
+    # for i in range(5):
+    #     print(select.mutate().sql())
 
-    #print(randomQueryGen(prob, debug=False, cycle=1))
+    print(randomQueryGen(debug=False, cycle=1))
 
