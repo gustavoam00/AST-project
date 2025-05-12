@@ -2,6 +2,7 @@ import subprocess
 import logging
 from metric import get_coverage, coverage_score, save_error, get_error, sql_cleaner, remove_lines, remove_common_lines
 from pathlib import Path
+from tqdm import tqdm
 
 LOCAL = True
 SQLITE_VERSIONS = ["sqlite3-3.26.0", "sqlite3-3.39.4"]
@@ -93,6 +94,9 @@ def test(query, name):
         with open(f"test/{ver}.txt", "w") as f:
             f.write(results[i])
 
+    out1 = out1.split("\n")
+    out2 = out2.split("\n")
+
     result = remove_lines(out1, out2)
     errors = remove_lines(err1, err2)
     result1, result2 = remove_common_lines(out1, out2)
@@ -104,10 +108,14 @@ def test(query, name):
             f.writelines(result1)
         with open(f"test/bug/{name}_2.txt", "w") as f:
             f.writelines(result2)
+        with open(f"test/bug/{name}_clean.sql", "w") as f:
+            f.writelines("\n".join(query))
     if result:
         logging.warning("Maybe Bug found!")
         with open(f"test/bug/{name}_r.txt", "w") as f:
             f.writelines(result)
+        with open(f"test/bug/{name}_clean.sql", "w") as f:
+            f.writelines("\n".join(query))
     if errors1 != errors2 and ERRORS:
         logging.warning("Error Bug found!")
         with open(f"test/bug/{name}_err1.txt", "w") as f:
@@ -127,7 +135,8 @@ if __name__ == "__main__":
     reset()
 
     sql_folder = Path('test')
-    for i, sql_file in enumerate(sql_folder.glob('*.sql')):
+    
+    for i, sql_file in tqdm(enumerate(sql_folder.glob('*.sql')), desc="Testing Queries for Bugs"):
         with sql_file.open('r', encoding='utf-8') as f:
             query = sql_cleaner(f.read())
             test(query, sql_file.stem)

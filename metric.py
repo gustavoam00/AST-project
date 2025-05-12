@@ -57,7 +57,10 @@ def sql_cleaner(queries: str) -> list[str]:
             and "time" not in stmt 
             and "collation_list" not in stmt
             and "function_list" not in stmt
-            and "analysis_limit" not in stmt]
+            and "analysis_limit" not in stmt
+            and "ANALYZE" not in stmt
+            and "REINDEX" not in stmt
+            and "VACUUM" not in stmt]
 
 def remove_lines(result1: list[str], result2: list[str]):
     length = min(len(result1), len(result2))
