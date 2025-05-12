@@ -2285,8 +2285,8 @@ class Optimization(SQLNode):
     
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
-def randomQueryGen(query: List[str] = "", param_prob: Dict[str, float] = None, 
-                   debug: bool = False, cycle: int = 3, context: List[Table] = []) -> tuple[List[str], List[Table]]:
+def randomQueryGen(query: List[str] = [], param_prob: Dict[str, float] = None, debug: bool = False, 
+                   cycle: int = 3, context: List[Table] = []) -> tuple[List[str], List[Table]]:
     """
     Randomly generates the entire query, keeping track of the tables to pass as arguments.
     

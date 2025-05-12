@@ -41,8 +41,8 @@ def save_error(msg: str, save: str) -> str:
                 f.write(f"{err}\n")
 
 def get_error(msg: str) -> str:
-    msg = re.sub(r'\b(in prepare|stepping),\s*', '', msg)
     msg = re.findall(r"Error:(.*)\n", msg)
+    msg = [re.sub(r'\b(in prepare|stepping),\s*', '', line) for line in msg]
     msg = [re.sub(r'\s\(\d+\)\s*$', '', line) for line in msg]
     msg = [line.replace('table', 'view', 1) if 'view' in line else line for line in msg]
     msg = [line.replace('database table is locked', 'SQL logic error', 1) if "is locked" in line else line for line in msg]

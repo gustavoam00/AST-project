@@ -5,7 +5,7 @@ import generator as gen
 import random, re, argparse
 from config import TEST_FOLDER, SEED, PROB_TABLE, SQL_KEYWORDS, SQL_OPERATORS
 
-random.seed(SEED)
+#random.seed(SEED)
 
 FUZZING_PIPELINE = lambda x: [
     Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False),
@@ -153,7 +153,6 @@ class Fuzzing:
 
         while tries < self.threshold:
 
-            if gen_type:
             if tables:
                 table = random.choice(updated_tables)
                 while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
@@ -255,13 +254,33 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
         cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
     if save:
-        with open(TEST_FOLDER + f"results/{desc}_{lines_c:5.4f}_save.txt", "w") as f:
+        with open(TEST_FOLDER + f"results/pipeline_{lines_c:5.4f}_save.txt", "w") as f:
             f.write(f"Best Coverage: {cov:5.4f}, {c}, Valid/Invalid: {total_valid}/{total_invalid}\n")
-        save_error(msg, TEST_FOLDER + f"results/metrics/{desc}_{lines_c:5.4f}_error.txt")
-        with open(TEST_FOLDER + f"{desc}_{lines_c:5.4f}_query.sql", "w") as f:
+        save_error(msg, TEST_FOLDER + f"results/pipeline_{lines_c:5.4f}_error.txt")
+        with open(TEST_FOLDER + f"pipeline_{lines_c:5.4f}_query.sql", "w") as f:
             f.write("\n".join(query))
 
     return cov, c, query, tables, corpus
+
+def random_query(repeat: int = 3, save: bool = True):
+    query = []
+    tables = []
+
+    reset() # for local: resets the test.db and sqlite3.c.gcov
+    query, tables = gen.randomQueryGen(cycle=repeat)
+
+    lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query)
+    c = (lines_c, branch_c, taken_c, calls_c)
+    cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+
+    if save and cov != 0:
+        with open(TEST_FOLDER + f"results/random_{lines_c:5.4f}_save.txt", "w") as f:
+            f.write(f"Best Coverage: {cov:5.4f}, {c}\n")
+        save_error(msg, TEST_FOLDER + f"results/random_{lines_c:5.4f}_error.txt")
+        with open(TEST_FOLDER + f"random_{lines_c:5.4f}_query.sql", "w") as f:
+            f.write("\n".join(query))
+
+    return cov, c, query, tables
 
 def main():
     parser = argparse.ArgumentParser(description="Fuzzing Script")
@@ -270,9 +289,14 @@ def main():
     
     args = parser.parse_args()
 
-    pipeline = FUZZING_PIPELINE(PROB_TABLE)
-    cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=int(args.repeat))
-    print(f"Final Coverage: {cov}")
+    c = (0, 0, 0, 0)
+    if str(args.type) == 'PIPELINE': 
+        pipeline = FUZZING_PIPELINE(PROB_TABLE)
+        cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=int(args.repeat))
+    elif str(args.type) == 'RANDOM': 
+        cov, c, query, table = random_query(repeat=int(args.repeat))
+
+    print(f"Final Coverage: {c[0]}")
 
 if __name__ == "__main__":
     main()
