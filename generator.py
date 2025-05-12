@@ -2,11 +2,10 @@ import random
 import string
 from dataclasses import dataclass, field
 from typing import List, Optional, Union, Dict
-from config import SEED
+# from config import SEED
 import copy
 
 # random.seed(SEED)
-INSIDE_INDEX = False
 VIRTUAL = {
     "types": ["rtree", "fts4", "dbstat"],
     "dbstat": [{"name": "TEXT"}, {"path": "TEXT"}, {"pageno": "INTEGER"}, {"pagetype": "TEXT"}, {"ncell": "INTEGER"}, {"payload": "INTEGER"}, {"unused": "INTEGER"}, {"mx_payload": "INTEGER"}, {"pgoffset": "INTEGER"}, {"pgsize": "INTEGER"}, {"schema": "TEXT"}],

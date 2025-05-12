@@ -14,8 +14,6 @@ def worker(prob, stop_event, worker_id, output_dir):
     with open(text_path, "w", encoding="utf-8") as f:
         while not stop_event.is_set():
             query, _ = gen.randomQueryGen(prob, cycle=3)
-            #flatten
-            # f.write(query + "\n")
             f.write(" ".join(query) + "\n")
             count += 1
 
@@ -57,7 +55,7 @@ def parallelized_query_gen(param_prob, duration_seconds, num_workers, output_dir
 
     queries_per_minute = total / (duration_seconds / 60)
 
-    with open("log.txt", "w") as log:
+    with open("perrformance_log.txt", "w") as log:
         log.write(f"Query generation log\n")
         log.write(f"--------------------\n")
         log.write(f"Duration (seconds): {duration_seconds:.2f}\n")
@@ -89,4 +87,4 @@ def estimate_average_size(param_prob=None, num_samples=10000):
 
 if __name__ == '__main__':
     # estimate_average_size(param_prob=None)
-    parallelized_query_gen(param_prob=None, duration_seconds=60, num_workers=2)
+    parallelized_query_gen(param_prob=None, duration_seconds=10, num_workers=1)
