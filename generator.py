@@ -802,7 +802,7 @@ class ColumnExpression(Expression):
 
         if mutation_type == "change_val" and col_expr.table.columns:
             column = random.choice(col_expr.table.columns)
-            col_expr.value = f"{table.name}.{column.name}"
+            col_expr.value = f"{self.table.name}.{column.name}"
 
         elif mutation_type == "apply_formula" and col_expr.table.columns:
             current_dtype = random.choice(col_expr.table.columns).dtype 
@@ -914,7 +914,7 @@ class Where(SQLNode):
             if no_sub:
                 return Predicate.random(table, sub_allow=False, param_prob=prob) # Index does not accept subqueries
             elif other_tables and flip(prob["sub_p"]):
-                return InSubquery.random(table, other_tables, param_prob=prob) #{"where_p":prob["where_p"]})
+                return InSubquery.random(table, other_tables, max_depth=max_depth - 1, param_prob=prob) #{"where_p":prob["where_p"]})
             elif flip(prob["pred_p"]):
                 return Predicate.random(table, param_prob=prob)
             else:
@@ -941,7 +941,7 @@ class InSubquery(Where):
         return f"{self.table_name}.{self.column.name} IN ({self.subquery.sql()})" #is this missing the WHERE at the beginning of the string?
 
     @staticmethod
-    def random(table: "Table", other_tables: List["Table"],  param_prob: Dict[str, float] = None) -> "InSubquery":
+    def random(table: "Table", other_tables: List["Table"], param_prob: Dict[str, float] = None, max_depth: int = 1) -> "InSubquery":
         prob = {"where_p":0.05, }
         if param_prob is not None:
             prob.update(param_prob)
@@ -955,7 +955,7 @@ class InSubquery(Where):
         else:
             sub_col = random.choice(matching_columns)
             
-        where_clause = Where.random(other_table, max_depth=1, param_prob=prob) if flip(prob["where_p"]) else None
+        where_clause = Where.random(other_table, max_depth=max_depth, param_prob=prob) if flip(prob["where_p"]) else None
         subquery = Select(
             expressions = [f"{other_table.name}.{sub_col.name}",],
             columns=[sub_col,],
@@ -1365,7 +1365,7 @@ class Update(SQLNode):
             # value = random_value(col.dtype, null_chance=prob["null_p"])
             vals.append(value)
 
-        where = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
+        where = Where.random(table, max_depth=2, param_prob=prob) if flip(prob["where_p"]) else None
         return Update(table=table, columns=cols, values=vals, where=where)
     
     
@@ -1692,7 +1692,7 @@ class Select(SQLNode):
                 expressions[i] = f"{expressions[i]} AS {random_name(prefix='alias')}"
 
             
-        where = Where.random(table, param_prob=prob, other_tables=other_tables) if flip(prob["where_p"]) else None
+        where = Where.random(table, max_depth=3, param_prob=prob, other_tables=other_tables) if flip(prob["where_p"]) else None
         group_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["grp_p"]) else None
         order_by = random.sample(selected_cols, k=1) if selected_cols and flip(prob["ord_p"]) else None
         limit = random.randint(1,20) if flip(prob["lmt_p"]) else None
@@ -2085,7 +2085,7 @@ class Trigger(SQLNode):
             num_cols = random.randint(1, len(table.columns))
             sample_cols = random.sample(table.columns, num_cols)
             cols = [col.name for col in sample_cols]
-        when = Where.random(table, param_prob=prob) if flip(prob["where_p"]) else None
+        when = Where.random(table, max_depth=3, param_prob=prob) if flip(prob["where_p"]) else None
         foreach = flip(prob["feac_p"])
 
         statements = []
