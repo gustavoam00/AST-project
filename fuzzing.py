@@ -1,8 +1,8 @@
 from tqdm import tqdm
-from client import coverage_test, reset, LOCAL
+from client_local import coverage_test, reset, LOCAL
 from metric import coverage_score, save_error
 import generator as gen
-import random, re
+import random, re, argparse
 from config import TEST_FOLDER, SEED, PROB_TABLE, SQL_KEYWORDS, SQL_OPERATORS
 
 random.seed(SEED)
@@ -20,6 +20,7 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("Index", gen.Index, no_virt=True, commit=True, prob=x),
     Fuzzing("Delete", gen.Delete, mod_table=True, commit=True, prob=x), 
     Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, prob=x),
+    Fuzzing("DropTable", gen.DropTable, rem_table=True, needs_table=True, prob=x),
 ]
 
 def mutate_query(query: str) -> str:
@@ -152,6 +153,7 @@ class Fuzzing:
 
         while tries < self.threshold:
 
+            if gen_type:
             if tables:
                 table = random.choice(updated_tables)
                 while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
@@ -252,18 +254,25 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
         c = (lines_c, branch_c, taken_c, calls_c)
         cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
-        if save:
-            with open(TEST_FOLDER + f"results/{desc}_save_{lines_c:5.4f}.txt", "w") as f:
-                f.write(f"Best Coverage: {cov:5.4f}, {c}, Valid/Invalid: {total_valid}/{total_invalid}\n")
-                f.write(f"Best Query: {query}\n")
-                f.write(f"Tables: {tables}\n")
-            save_error(msg, TEST_FOLDER + f"results/{desc}_error_{lines_c:5.4f}.txt")
-            with open(TEST_FOLDER + f"results/{desc}_query_{lines_c:5.4f}.sql", "w") as f:
-                f.write("\n".join(query))
+    if save:
+        with open(TEST_FOLDER + f"results/{desc}_{lines_c:5.4f}_save.txt", "w") as f:
+            f.write(f"Best Coverage: {cov:5.4f}, {c}, Valid/Invalid: {total_valid}/{total_invalid}\n")
+        save_error(msg, TEST_FOLDER + f"results/metrics/{desc}_{lines_c:5.4f}_error.txt")
+        with open(TEST_FOLDER + f"{desc}_{lines_c:5.4f}_query.sql", "w") as f:
+            f.write("\n".join(query))
 
     return cov, c, query, tables, corpus
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description="Fuzzing Script")
+    parser.add_argument("type", help="Select hybrid type: 'PIPELINE', 'RANDOM'")
+    parser.add_argument("repeat", help="Number of Loops")
+    
+    args = parser.parse_args()
+
     pipeline = FUZZING_PIPELINE(PROB_TABLE)
-    cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=10)
+    cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=int(args.repeat))
     print(f"Final Coverage: {cov}")
+
+if __name__ == "__main__":
+    main()
