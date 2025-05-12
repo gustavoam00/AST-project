@@ -2,7 +2,7 @@ import subprocess
 import logging
 from metric import get_coverage, sql_cleaner
 from pathlib import Path
-from config import TEST_FOLDER, RESULT_FOLDER, SQLITE_VERSIONS
+from config import TEST_FOLDER, BUGS_FOLDER, SQLITE_VERSIONS
 import os
 
 LOCAL = True
@@ -81,9 +81,9 @@ def run_test(queries, name):
     db1 = "test1.db"
     db2 = "test2.db"
 
-    file1 = os.path.join(RESULT_FOLDER, f"{name}_{SQLITE_VERSIONS[0]}.sql")
-    file2 = os.path.join(RESULT_FOLDER, f"{name}_{SQLITE_VERSIONS[1]}.sql")
-    file_diff = os.path.join(RESULT_FOLDER, f"{name}_diff.txt")
+    file1 = os.path.join(BUGS_FOLDER, f"{name}_{SQLITE_VERSIONS[0]}.sql")
+    file2 = os.path.join(BUGS_FOLDER, f"{name}_{SQLITE_VERSIONS[1]}.sql")
+    file_diff = os.path.join(BUGS_FOLDER, f"{name}_diff.txt")
 
     bugs = 0
 
