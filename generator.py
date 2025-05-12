@@ -1134,7 +1134,6 @@ class Table(SQLNode):
             prob = {"pk_p":0.1 if i==0 else 0, "unq_p": 0 if i==0 or i==1 else 0.05}
             col = Column.random(param_prob=prob)
             columns.append(col)
-
         return Table(name, columns)
     
     def mutate(self) -> "Table":
@@ -2285,7 +2284,8 @@ class Optimization(SQLNode):
     
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
 
-def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cycle: int = 3, context: Table = None) -> str:
+def randomQueryGen(query: List[str] = [], param_prob: Dict[str, float] = None, debug: bool = False, 
+                   cycle: int = 3, context: List[Table] = []) -> tuple[List[str], List[Table]]:
     """
     Randomly generates the entire query, keeping track of the tables to pass as arguments.
     
@@ -2323,13 +2323,15 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
     if param_prob is not None:
         prob.update(param_prob)
     
-    query = ""
+    query = query
+    tables = context
     if not context:
-        tables = [Table.random()]
-        query = tables[0].sql() + ";\n"
+        table = Table.random()
+        tables.append(table)
+        query.append(table.sql() + ";")
         for i in range(1):
-            insert = Insert.random(tables[0], param_prob=prob)
-            query += insert.sql() + ";\n"
+            insert = Insert.random(table, param_prob=prob)
+            query.append(insert.sql() + ";")
             
     views = []
     triggers = []
@@ -2340,77 +2342,77 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
         # try:
             if flip(prob["pragma"]) or debug:
                 pragma = Pragma.random()
-                query += pragma.sql() + ";\n"
+                query.append(pragma.sql() + ";")
                 
             if flip(prob["table"]) or tables == [] or debug:
                 new_table = Table.random()
                 tables.append(new_table)
-                query+= new_table.sql() + ";\n"
+                query.append(new_table.sql() + ";")
                 for i in range(1):
                     insert = Insert.random(new_table, param_prob=prob)
-                    query += insert.sql() + ";\n"
+                    query.append(insert.sql() + ";")
                     
             table = random.choice(tables)
                 
             if flip(prob["insert"]) or debug:
                 insert = Insert.random(table, param_prob=prob)
-                query += insert.sql() + ";\n"
+                query.append(insert.sql() + ";")
             if flip(prob["replace"]) or debug:
                 replace = Replace.random(table, param_prob=prob)
-                query += replace.sql() + ";\n"
+                query.append(replace.sql() + ";")
             if flip(prob["update"]) or debug:
                 update = Update.random(table, param_prob=prob)
                 if update:
-                    query += update.sql() + ";\n"
+                    query.append(update.sql() + ";")
             if flip(prob["delete"]) or debug:
                 delete = Delete.random(table, param_prob=prob)
-                query += delete.sql() + ";\n"
+                query.append(delete.sql() + ";")
                 
             if flip(prob["alt_ren"]) or debug and not table.viewed:
                 new_table = AlterTable.random_tbl_rename(table)
                 if new_table:
                     tables.remove(table) # renamed name of table, table does not exist anymore
                     tables.append(new_table)
-                    query += new_table.sql() + ";\n"
+                    query.append(new_table.sql() + ";")
                     table = random.choice(tables)
             if flip(prob["alt_add"]) or debug and not table.viewed:
                 new_table = AlterTable.random_add(table)
                 if new_table:
                     new_table.confirm_add()
-                    query += new_table.sql() + ";\n"
+                    query.append(new_table.sql() + ";")
             if flip(prob["alt_col"]) or debug and not table.viewed:
                 new_table = AlterTable.random_col_rename(table)
                 if new_table:
                     new_table.confirm_rename()
-                    query += new_table.sql() + ";\n"
+                    query.append(new_table.sql() + ";")
             
             if flip(prob["index"]) or debug:
                 index = Index.random(table, param_prob=prob)
                 if index:
                     indexes.append(index)
-                    query += index.sql() + ";\n"
+                    query.append(index.sql() + ";")
             if flip(prob["trigger"]) or debug:
                 trigger = Trigger.random(table, param_prob=prob)
                 triggers.append(trigger)
-                query += trigger.sql() + ";\n"
+                query.append(trigger.sql() + ";")
             
             table = random.choice(tables + views)
             if flip(prob["view"]) or debug:
                 table.viewed = True #flags table so that we dont modify it
                 view = View.random(table, param_prob=prob)
                 views.append(view)
-                query += view.sql() + ";\n"
+                query.append(view.sql() + ";")
                 
             if flip(prob["with"]) or debug:
                 with_ = With.random(table, param_prob=prob)
-                query += with_.sql() + ";\n"
+                query.append(with_.sql() + ";")
             
             if flip(prob["select1"]) or debug:
                 select = Select.random(table, param_prob=prob)
-                query += select.sql() + ";\n"
+                query.append(select.sql() + ";")
             if (flip(prob["select2"]) and len(tables) > 1) or debug:
                 select2 = Select.random(table, other_tables=tables, param_prob=prob)
-                query += select2.sql() + ";\n"
+                query.append(select2.sql() + ";")
                 
             if flip(prob["control"]) or debug:
                 transaction = TransactionControl.random(transaction_active=transaction_active, save_points=save_points, param_prob=prob)
@@ -2419,18 +2421,18 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
                     save_points.append(transaction.save_name)
                 if transaction.release:
                     save_points.remove(transaction.release)
-                query+=transaction.sql() + ";\n"
+                query.append(transaction.sql() + ";")
                 
             if (flip(prob["optimize"]) or debug) and not transaction_active:
                 optimization = Optimization.random(table)
-                query+=optimization.sql() + ";\n"
+                query.append(optimization.sql() + ";")
                 
             if flip(prob["drop_tbl"]):
                 table = random.choice(tables + views + triggers + indexes)
                 if getattr(table, "viewed", False):
                     continue
                 droptable = DropTable.random(table, param_prob=prob)
-                query+=droptable.sql() + ";\n"
+                query.append(droptable.sql() + ";")
                 if not droptable.fake_table:
                     if droptable.table_type == "VIEW":
                         views.remove(table)
@@ -2446,7 +2448,7 @@ def randomQueryGen(param_prob: Dict[str, float] = None, debug: bool = False, cyc
         #     print(e)
         #     i-=1
 
-    return query
+    return query, tables
         
 if __name__ == "__main__":
     table = Table.random()

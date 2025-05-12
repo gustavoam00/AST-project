@@ -1,8 +1,10 @@
 import subprocess
 import logging
-from metric import get_coverage, coverage_score, save_error
+from metric import get_coverage, coverage_score, save_error, get_error, sql_cleaner, remove_lines, remove_common_lines
+from pathlib import Path
 
 LOCAL = True
+SQLITE_VERSIONS = ["sqlite3-3.26.0", "sqlite3-3.39.4"]
 
 def coverage_test(sql_query, db="test.db", timeout=1):
     """
@@ -23,8 +25,8 @@ def coverage_test(sql_query, db="test.db", timeout=1):
             timeout=timeout
         )
         return get_coverage(result.stderr + "\n" + result.stdout)
-    except subprocess.TimeoutExpired:
-        return 0, 0, 0, 0, "Error: Timeout"
+    except subprocess.TimeoutExpired as e:
+        return 0, 0, 0, 0, str(e.stderr)
     except subprocess.CalledProcessError as e:
         logging.error(f"Error running query: {e.stderr}")
         return 0, 0, 0, 0, str(e.stderr)
@@ -50,21 +52,76 @@ def reset():
         return get_coverage(result.stdout)
     except subprocess.CalledProcessError as e:
         logging.error(f"Error running query: {e.stderr}")
-        return (0, str(e.stderr))
+        return 0, 0, 0, 0, str(e.stderr)
+    
+def run_query(sql_query, sqlite_version, db="test.db"):
+    """
+    Executes an SQL query using the specified SQLite version inside a Docker container.
+    """
+    commands = [f'/usr/bin/{sqlite_version} {db} "{query}"' for query in sql_query]
+    command_str = " ; ".join(commands)
+    try:
+        result = subprocess.run(
+            ["bash", "-c", command_str],
+            cwd="/usr/bin/test-db",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        return result.stdout, get_error(result.stderr)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error running query: {e.stderr}")
+        return str(e.stderr)
+
+def test(query, it: int = 0):
+    """
+    Compares query results between two SQLite versions.
+    """
+    results = []
+
+    reset_database()
+    out1, err1 = run_query(query, SQLITE_VERSIONS[0])
+    results.append(out1)
+
+    reset_database()
+    out2, err2 = run_query(query, SQLITE_VERSIONS[1])
+    results.append(out2)
+
+    for i, ver in enumerate(SQLITE_VERSIONS):
+        with open(f"test/{ver}.txt", "w") as f:
+            f.write(results[i])
+
+    file1 = "test/bug/sqlite3-3.26.0.txt"
+    file2 = "test/bug/sqlite3-3.39.4.txt"
+    out = "test/bug/result.txt"
+    result = remove_lines(file1, file2, out)
+    out1 = "test/bug/result1.txt"
+    out2 = "test/bug/result2.txt"
+    result1, result2 = remove_common_lines(file1, file2, out1, out2)
+
+    if result1 != result2:
+        logging.warning("Bug found!")
+        with open(f"test/bug/{it}_1.txt", "w") as f:
+            f.writelines(result1)
+        with open(f"test/bug/{it}_2.txt", "w") as f:
+            f.writelines(result2)
+    if result:
+        logging.warning("Maybe Bug found!")
+        with open(f"test/bug/{it}_r.txt", "w") as f:
+            f.writelines(result)
+
+def reset_database(db_path="test.db"):
+    with open(db_path, "w") as f:
+        f.write("")
     
 if __name__ == "__main__":
     reset()
-    d = "test/query_test.sql"
-    with open(d, "r") as f:
-        sql = f.read()
-        FULL = [stmt.strip() + ";" for stmt in sql.split(";") if stmt.strip()]
 
-    lines_c, branch_c, taken_c, calls_c, msg = coverage_test(FULL)
-    combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
-
-    print(msg)
-
-    save_error(msg, "test/error/error_local.txt")
-
-    a, b, c, d, _ = get_coverage(msg)
-    print(a, b, c, d)
+    sql_folder = Path('test')
+    for i, sql_file in enumerate(sql_folder.glob('*.sql')):
+        with sql_file.open('r', encoding='utf-8') as f:
+            query = sql_cleaner(f.read())
+            test(query, i)
+    
+    

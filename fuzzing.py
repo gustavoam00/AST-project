@@ -2,10 +2,10 @@ from tqdm import tqdm
 from client_local import coverage_test, reset, LOCAL
 from metric import coverage_score, save_error
 import generator as gen
-import random, re
-from config import TEST_FOLDER, SEED, PROB_TABLE
+import random, re, argparse
+from config import TEST_FOLDER, SEED, PROB_TABLE, SQL_KEYWORDS, SQL_OPERATORS
 
-random.seed(SEED)
+#random.seed(SEED)
 
 FUZZING_PIPELINE = lambda x: [
     Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False),
@@ -20,17 +20,8 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("Index", gen.Index, no_virt=True, commit=True, prob=x),
     Fuzzing("Delete", gen.Delete, mod_table=True, commit=True, prob=x), 
     Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, prob=x),
+    Fuzzing("DropTable", gen.DropTable, rem_table=True, needs_table=True, prob=x),
 ]
-
-SQL_KEYWORDS = ["SELECT", "FROM", "WHERE", "ORDER BY", "GROUP BY", "JOIN", 
-                "LEFT JOIN", "INNER JOIN", "LIMIT", "OFFSET", "CREATE", "TABLE", 
-                "VIRTUAL", "VIEW", "BETWEEN", "AS", "IN", "LIKE", "AND", "OR",
-                "MATCH", "EXISTS", "EXPLAIN", "BEGIN", "END", "COMMIT", "ROLLBACK",
-                "IS", "NOT", "NULL", "CASE", "WHEN", "THEN", "ELSE", "RENAME", "COLUMN",
-                "VALUES", "TO", "INSERT", "INTO", "UPDATE", "DELETE", "DEFAULT", "SET"
-                "REPLACE", "WITH", "USING", "INDEX", "ON", "UNIQUE", "TRIGGER",
-                "BEFORE", "AFTER", "TEMP", "IF", "FOR", "EACH", "ROW", "PRAGMA", ""]
-OPERATORS = ["=", "!=", "<", ">", "<=", ">=", "LIKE"]
 
 def mutate_query(query: str) -> str:
     mutations = [mutate_keyword, mutate_values, mutate_operator]
@@ -55,9 +46,9 @@ def mutate_values(query: str) -> str:
     return query
 
 def mutate_operator(sql: str) -> str:
-    for op in OPERATORS:
+    for op in SQL_OPERATORS:
         if op in sql:
-            new_op = random.choice(OPERATORS)
+            new_op = random.choice(SQL_OPERATORS)
             return sql.replace(op, new_op, 1)
     return sql
 
@@ -262,18 +253,52 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
         c = (lines_c, branch_c, taken_c, calls_c)
         cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
-        if save:
-            with open(TEST_FOLDER + f"results/{desc}_save_{lines_c:5.4f}.txt", "w") as f:
-                f.write(f"Best Coverage: {cov:5.4f}, {c}, Valid/Invalid: {total_valid}/{total_invalid}\n")
-                f.write(f"Best Query: {query}\n")
-                f.write(f"Tables: {tables}\n")
-            save_error(msg, TEST_FOLDER + f"results/{desc}_error_{lines_c:5.4f}.txt")
-            with open(TEST_FOLDER + f"results/{desc}_query_{lines_c:5.4f}.sql", "w") as f:
-                f.write("\n".join(query))
+    if save:
+        with open(TEST_FOLDER + f"results/pipeline_{lines_c:5.4f}_save.txt", "w") as f:
+            f.write(f"Best Coverage: {cov:5.4f}, {c}, Valid/Invalid: {total_valid}/{total_invalid}\n")
+        save_error(msg, TEST_FOLDER + f"results/pipeline_{lines_c:5.4f}_error.txt")
+        with open(TEST_FOLDER + f"pipeline_{lines_c:5.4f}_query.sql", "w") as f:
+            f.write("\n".join(query))
 
     return cov, c, query, tables, corpus
 
+def random_query(repeat: int = 3, save: bool = True):
+    query = []
+    tables = []
+
+    reset() # for local: resets the test.db and sqlite3.c.gcov
+    query, tables = gen.randomQueryGen(cycle=repeat)
+
+    print(len(query))
+
+    lines_c, branch_c, taken_c, calls_c, msg = coverage_test(query, timeout=len(query)/10.0)
+    c = (lines_c, branch_c, taken_c, calls_c)
+    cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+
+    if save and cov != 0:
+        with open(TEST_FOLDER + f"results/random_{lines_c:5.4f}_save.txt", "w") as f:
+            f.write(f"Best Coverage: {cov:5.4f}, {c}\n")
+        save_error(msg, TEST_FOLDER + f"results/random_{lines_c:5.4f}_error.txt")
+        with open(TEST_FOLDER + f"random_{lines_c:5.4f}_query.sql", "w") as f:
+            f.write("\n".join(query))
+
+    return cov, c, query, tables
+
+def main():
+    parser = argparse.ArgumentParser(description="Fuzzing Script")
+    parser.add_argument("type", help="Select hybrid type: 'PIPELINE', 'RANDOM'")
+    parser.add_argument("repeat", help="Number of Loops")
+    
+    args = parser.parse_args()
+
+    c = (0, 0, 0, 0)
+    if str(args.type) == 'PIPELINE': 
+        pipeline = FUZZING_PIPELINE(PROB_TABLE)
+        cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=int(args.repeat))
+    elif str(args.type) == 'RANDOM': 
+        cov, c, query, table = random_query(repeat=int(args.repeat))
+
+    print(f"Final Coverage: {c[0]}")
+
 if __name__ == "__main__":
-    pipeline = FUZZING_PIPELINE(PROB_TABLE)
-    cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=5)
-    print(f"Final Coverage: {cov}")
+    main()
