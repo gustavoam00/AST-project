@@ -71,14 +71,15 @@ def run_query(sql_query, sqlite_version, db="test.db"):
         )
         return result.stdout, get_error(result.stderr)
     except subprocess.CalledProcessError as e:
-        logging.error(f"Error running query: {e.stderr}")
-        return str(e.stderr)
+        #logging.error(f"Error running query: {e.stderr}")
+        return "", str(e.stderr)
 
-def test(query, it: int = 0):
+def test(query, name):
     """
     Compares query results between two SQLite versions.
     """
     results = []
+    ERRORS = False
 
     reset_database()
     out1, err1 = run_query(query, SQLITE_VERSIONS[0])
@@ -92,24 +93,31 @@ def test(query, it: int = 0):
         with open(f"test/{ver}.txt", "w") as f:
             f.write(results[i])
 
-    file1 = "test/bug/sqlite3-3.26.0.txt"
-    file2 = "test/bug/sqlite3-3.39.4.txt"
-    out = "test/bug/result.txt"
-    result = remove_lines(file1, file2, out)
-    out1 = "test/bug/result1.txt"
-    out2 = "test/bug/result2.txt"
-    result1, result2 = remove_common_lines(file1, file2, out1, out2)
+    result = remove_lines(out1, out2)
+    errors = remove_lines(err1, err2)
+    result1, result2 = remove_common_lines(out1, out2)
+    errors1, errors2 = remove_common_lines(err1, err2)
 
     if result1 != result2:
         logging.warning("Bug found!")
-        with open(f"test/bug/{it}_1.txt", "w") as f:
+        with open(f"test/bug/{name}_1.txt", "w") as f:
             f.writelines(result1)
-        with open(f"test/bug/{it}_2.txt", "w") as f:
+        with open(f"test/bug/{name}_2.txt", "w") as f:
             f.writelines(result2)
     if result:
         logging.warning("Maybe Bug found!")
-        with open(f"test/bug/{it}_r.txt", "w") as f:
+        with open(f"test/bug/{name}_r.txt", "w") as f:
             f.writelines(result)
+    if errors1 != errors2 and ERRORS:
+        logging.warning("Error Bug found!")
+        with open(f"test/bug/{name}_err1.txt", "w") as f:
+            f.writelines(errors1)
+        with open(f"test/bug/{name}_err2.txt", "w") as f:
+            f.writelines(errors2)
+    if errors and ERRORS:
+        logging.warning("Maybe Error Bug found!")
+        with open(f"test/bug/{name}_errr.txt", "w") as f:
+            f.writelines(errors)
 
 def reset_database(db_path="test.db"):
     with open(db_path, "w") as f:
@@ -122,6 +130,6 @@ if __name__ == "__main__":
     for i, sql_file in enumerate(sql_folder.glob('*.sql')):
         with sql_file.open('r', encoding='utf-8') as f:
             query = sql_cleaner(f.read())
-            test(query, i)
+            test(query, sql_file.stem)
     
     

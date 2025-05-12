@@ -55,48 +55,35 @@ def sql_cleaner(queries: str) -> list[str]:
             and "dbstat" not in stmt
             and "date" not in stmt
             and "time" not in stmt 
-            and "PRAGMA" not in stmt]
+            and "collation_list" not in stmt
+            and "function_list" not in stmt
+            and "analysis_limit" not in stmt]
 
-def remove_lines(forwards_file, reference_file, output_file):
-    with open(forwards_file, 'r') as f1, open(reference_file, 'r') as f2:
-        forwards_lines = f1.readlines()
-        reference_lines = f2.readlines()
-
-    length = min(len(forwards_lines), len(reference_lines))
-    keep = [True] * len(forwards_lines)
+def remove_lines(result1: list[str], result2: list[str]):
+    length = min(len(result1), len(result2))
+    keep = [True] * len(result1)
 
     # Forward comparison
     for i in range(length):
-        if forwards_lines[i] == reference_lines[i]:
+        if result1[i] == result2[i]:
             keep[i] = False
 
     # Backward comparison
     for i in range(1, length + 1):
-        if forwards_lines[-i] == reference_lines[-i]:
+        if result1[-i] == result2[-i]:
             keep[-i] = False
 
-    result_lines = [line for line, k in zip(forwards_lines, keep) if k]
-
-    with open(output_file, 'w') as out:
-        out.writelines(result_lines)
+    result_lines = [line for line, k in zip(result1, keep) if k]
 
     return result_lines
 
-def remove_common_lines(file1_path, file2_path, out1_path, out2_path):
-    with open(file1_path, 'r') as f1, open(file2_path, 'r') as f2:
-        lines1 = f1.readlines()
-        lines2 = f2.readlines()
-
-    set1 = set(lines1)
-    set2 = set(lines2)
+def remove_common_lines(result1: list[str], result2: list[str]):
+    set1 = set(result1)
+    set2 = set(result2)
     common = set1 & set2
 
-    unique1 = [line for line in lines1 if line not in common]
-    unique2 = [line for line in lines2 if line not in common]
-
-    with open(out1_path, 'w') as out1, open(out2_path, 'w') as out2:
-        out1.writelines(unique1)
-        out2.writelines(unique2)
+    unique1 = [line for line in result1 if line not in common]
+    unique2 = [line for line in result2 if line not in common]
 
     return unique1, unique2
     
