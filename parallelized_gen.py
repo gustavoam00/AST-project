@@ -13,10 +13,10 @@ def worker(prob, stop_event, worker_id, output_dir):
 
     with open(text_path, "w", encoding="utf-8") as f:
         while not stop_event.is_set():
-            query = gen.randomQueryGen(prob)
+            query, _ = gen.randomQueryGen(prob, cycle=3)
             #flatten
             # f.write(query + "\n")
-            f.write(query.replace("\n", " ") + "\n")
+            f.write(" ".join(query) + "\n")
             count += 1
 
     with open(count_path, "w") as c:
@@ -89,4 +89,4 @@ def estimate_average_size(param_prob=None, num_samples=10000):
 
 if __name__ == '__main__':
     # estimate_average_size(param_prob=None)
-    parallelized_query_gen(param_prob=None, duration_seconds=20, num_workers=2)
+    parallelized_query_gen(param_prob=None, duration_seconds=60, num_workers=2)

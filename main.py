@@ -80,9 +80,9 @@ if __name__ == "__main__":
     }
 
     
-    for _ in tqdm(range(1000)):
-        query = gen.randomQueryGen(param_prob=prob, debug=False, cycle=2)
-        error = run_query([query], SQLITE_VERSIONS[0])
+    for _ in tqdm(range(10)):
+        query, _ = gen.randomQueryGen(param_prob=prob, debug=False, cycle=2)
+        error = run_query(query, SQLITE_VERSIONS[0])
         
         if "Error" in error:
             print(error)
