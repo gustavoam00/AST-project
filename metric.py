@@ -4,11 +4,58 @@ from typing import List, Union
 from config import ERROR 
 
 def metric(query: Union[List, str]) -> Counter:
+    '''
+    Extracts all words that is in uppercase inside a list or string
+    '''
     if isinstance(query, List):
         query = " ".join(query)
+    query = " ".join(query.split(";"))
     words = re.sub(r'[^a-zA-Z ]', ' ', query).split()
     upper = [w for w in words if w.isupper()]
     return Counter(upper)
+
+def parse_metric(filepath: str) -> Counter:
+    '''
+    Extracts metrics information of the file at filepath:
+    Metrics:
+        SELECT: 3
+        CASE: 1
+        FROM: 3
+        ...
+    Returns: Counter({"SELECT": 3, "CASE": 1, "FROM": 3, ...})
+    '''
+    metrics = Counter()
+    in_metrics = False
+
+    with open(filepath, 'r') as f:
+        for line in f:
+            line = line.strip()
+
+            if line == "Metrics:":
+                in_metrics = True
+                continue
+
+            if in_metrics:
+                if not line or ":" not in line:
+                    continue
+                try:
+                    key, value = line.split(":")
+                    metrics[key.strip()] = int(value.strip())
+                except ValueError:
+                    continue 
+
+    return metrics
+
+def avg_counter(counters: List[Counter]) -> Counter:
+    all_keys = set().union(*counters)
+
+    n = len(counters)
+    average = Counter({
+        key: sum(c.get(key, 0) for c in counters) / n
+        for key in all_keys
+    })
+
+    return average
 
 def get_coverage(result: str) -> tuple[float, str]:
     lines = re.search(r"Lines executed:([\d.]+)% of (\d+)", result)

@@ -2,7 +2,7 @@ import generator as gen
 import random, re, argparse, time
 from config import TEST_FOLDER, FUZZ_FOLDER, SEED, PROB_TABLE, SQL_KEYWORDS, SQL_OPERATORS
 from test import run_coverage, reset, LOCAL
-from metric import coverage_score, save_error
+from metric import coverage_score, save_error, metric
 from tqdm import tqdm
 
 #random.seed(SEED)
@@ -182,11 +182,6 @@ class Fuzzing:
                 self.corpus.append(node)
                 active = val_active
 
-                with open(TEST_FOLDER + f"query_test.sql", "w") as f:
-                    f.write("\n".join(new_query))
-
-                # save_error(msg, TEST_FOLDER + f"error/error_{cov}_{random.randint(0, 10000)}.txt")
-                
                 if "EXPLAIN" not in valid_query[0] and not mut:
                     if self.rem_table: # alter table
                         updated_tables.remove(table)
@@ -270,19 +265,20 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
         c = (lines_c, branch_c, taken_c, calls_c)
         cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
-        if save:
-            err = save_error(msg, FUZZ_FOLDER + f"pipeline_{lines_c:5.2f}_error.txt")
-            with open(FUZZ_FOLDER + f"pipeline_{lines_c:5.2f}_stats.txt", "w") as f:
-                f.write(f"Average Coverage: {cov:5.2f}\n") 
-                f.write(f"Lines Coverage: {c[0]}\n")
-                f.write(f"Branch Coverage: {c[1]}\n") 
-                f.write(f"Taken Coverage: {c[2]}\n") 
-                f.write(f"Calls Coverage: {c[3]}\n") 
-                f.write(f"Valid/Invalid: {total_valid}/{total_invalid}\n")
-                f.write(f"Errors: {err}\n")
-                f.write(f"Runtime: {total_runtime}\n")
-            with open(TEST_FOLDER + f"pipeline_{lines_c:5.2f}.sql", "w") as f:
-                f.write("\n".join(query))
+    if save and cov > 0:
+        err = save_error(msg, FUZZ_FOLDER + f"pipeline_{lines_c:5.2f}_error.txt")
+        with open(FUZZ_FOLDER + f"pipeline_{lines_c:5.2f}_stats.txt", "w") as f:
+            f.write(f"Average Coverage: {cov:5.2f}\n") 
+            f.write(f"Lines Coverage: {c[0]}\n")
+            f.write(f"Branch Coverage: {c[1]}\n") 
+            f.write(f"Taken Coverage: {c[2]}\n") 
+            f.write(f"Calls Coverage: {c[3]}\n") 
+            f.write(f"Valid/Invalid: {total_valid}/{total_invalid}\n")
+            f.write(f"Errors: {err}\n")
+            f.write(f"Runtime: {total_runtime}\n")
+            f.write(f"Metrics: {metric(query)}\n")
+        with open(TEST_FOLDER + f"pipeline_{lines_c:5.2f}.sql", "w") as f:
+            f.write("\n".join(query))
 
     return cov, c, query, tables, corpus
 
@@ -294,7 +290,7 @@ def random_query(repeat: int = 3, save: bool = True):
     tables = []
 
     reset() # for local: resets the test.db and coverage information
-    query, tables = gen.randomQueryGen(cycle=3)
+    query, tables = gen.randomQueryGen(cycle=repeat)
 
     lines_c, branch_c, taken_c, calls_c, msg = run_coverage(query, timeout=len(query)/10.0)
     c = (lines_c, branch_c, taken_c, calls_c)
@@ -309,6 +305,10 @@ def random_query(repeat: int = 3, save: bool = True):
             f.write(f"Taken Coverage: {c[2]}\n") 
             f.write(f"Calls Coverage: {c[3]}\n") 
             f.write(f"Errors: {err}\n")
+            f.write(f"Metrics:\n")
+            counter = metric(query)
+            for k, v in counter.items():
+                f.write(f"  {k}: {v}\n")
         with open(TEST_FOLDER + f"random_{lines_c:5.2f}.sql", "w") as f:
             f.write("\n".join(query))
 
@@ -316,20 +316,24 @@ def random_query(repeat: int = 3, save: bool = True):
 
 def main():
     parser = argparse.ArgumentParser(description="Fuzzing Script")
-    parser.add_argument("type", help="Select hybrid type: 'PIPELINE', 'RANDOM'")
-    parser.add_argument("repeat", help="Number of Loops")
+    parser.add_argument("type", help="Select hybrid type: PIPELINE, RANDOM", nargs="?", default="PIPELINE")
+    parser.add_argument("repeat", help="Number of fuzzing loops", nargs="?", default=1, type=int)
+    parser.add_argument("sql", help="Number of .sql files", nargs="?", default=1, type=int)
     
     args = parser.parse_args()
 
+    times = args.sql
+
     c = (0, 0, 0, 0)
-    if str(args.type) == 'PIPELINE': 
-        prob = {k: (0.05 if 0 <= v and v <= 0.01 else v) for k, v in PROB_TABLE.items()}
-        prob = {k: ( 0.5 if v == 1 else v) for k, v in prob.items()}
-        prob = {k: ( 0.9 if v >= 0.95 else v) for k, v in prob.items()}
-        pipeline = FUZZING_PIPELINE(prob)
-        cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=int(args.repeat))
-    elif str(args.type) == 'RANDOM': 
-        cov, c, query, table = random_query(repeat=int(args.repeat))
+    for _ in range(times):
+        if args.type == 'PIPELINE': 
+            prob = {k: (0.05 if 0 <= v and v <= 0.01 else v) for k, v in PROB_TABLE.items()}
+            prob = {k: ( 0.5 if v == 1 else v) for k, v in prob.items()}
+            prob = {k: ( 0.9 if v >= 0.95 else v) for k, v in prob.items()}
+            pipeline = FUZZING_PIPELINE(prob)
+            cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=args.repeat)
+        elif args.type == 'RANDOM': 
+            cov, c, query, table = random_query(repeat=int(args.repeat))
 
     print(f"Final Lines Coverage: {c[0]}")
 

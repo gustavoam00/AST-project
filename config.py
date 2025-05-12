@@ -1,7 +1,8 @@
 SEED = 42 # random seed
-TEST_FOLDER = "test" # folder to save queries from fuzzer
-FUZZ_FOLDER = "test/fuzz_results" # fuzzing results
-BUGS_FOLDER = "test/bugs" # bugs results
+TEST_FOLDER = "test/" # folder to save queries from fuzzer
+FUZZ_FOLDER = "test/fuzz_results/" # fuzzing results
+BUGS_FOLDER = "test/bugs/" # bugs results
+METRICS_FOLDER = "test/fuzz_results/" # metrics
 ERROR = False # save errors in metric.py
 SQLITE_VERSIONS = ["sqlite3-3.26.0", "sqlite3-3.39.4"]
 

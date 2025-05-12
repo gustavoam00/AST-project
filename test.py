@@ -1,8 +1,8 @@
 import subprocess
-import logging
-from metric import get_coverage, sql_cleaner
+import argparse
+from metric import get_coverage, sql_cleaner, parse_metric, avg_counter
 from pathlib import Path
-from config import TEST_FOLDER, BUGS_FOLDER, SQLITE_VERSIONS
+from config import TEST_FOLDER, BUGS_FOLDER, METRICS_FOLDER, SQLITE_VERSIONS
 import os
 
 LOCAL = True
@@ -29,7 +29,6 @@ def run_coverage(sql_query, db="test.db", timeout=1):
     except subprocess.TimeoutExpired as e:
         return 0, 0, 0, 0, str(e.stderr)
     except subprocess.CalledProcessError as e:
-        logging.error(f"Error running query: {e.stderr}")
         return 0, 0, 0, 0, str(e.stderr)
 
 def reset():
@@ -51,7 +50,6 @@ def reset():
         )
         return get_coverage(result.stdout)
     except subprocess.CalledProcessError as e:
-        logging.error(f"Error running query: {e.stderr}")
         return 0, 0, 0, 0, str(e.stderr)
     
 def run_query(cmd):
@@ -121,14 +119,32 @@ def reset_db():
     for db in ["test.db", "test1.db", "test2.db"]:
         if os.path.exists(db):
             os.remove(db)
-    
-if __name__ == "__main__":
-    reset()
 
-    sql_folder = Path(TEST_FOLDER)
-    for i, sql_file in enumerate(sql_folder.glob('*.sql')):
-        with sql_file.open('r', encoding='utf-8') as f:
-            query = sql_cleaner(f.read())
-            run_test(query, sql_file.stem)
+def main():
+    parser = argparse.ArgumentParser(description="Testing")
+    parser.add_argument("type", help="Select testing: BUGS, DATA, BOTH", nargs="?", default="BUGS")
+    
+    args = parser.parse_args()
+
+    if args.type == "BUGS" or args.type == "BOTH":
+        reset()
+        sql_folder = Path(TEST_FOLDER)
+        for i, sql_file in enumerate(sql_folder.glob('*.sql')):
+            with sql_file.open('r', encoding='utf-8') as f:
+                query = sql_cleaner(f.read())
+                run_test(query, sql_file.stem)
+    elif args.type == "DATA" or args.type == "BOTH":
+        metrics_folder = Path(METRICS_FOLDER)
+        counters = []
+        for metric in metrics_folder.glob('*.txt'):
+            counters.append(parse_metric(metric))
+        avg_c = avg_counter(counters)
+        print(avg_c)
+
+if __name__ == "__main__":
+    main()
+
+    
+
     
     
