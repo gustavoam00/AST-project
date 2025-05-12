@@ -634,7 +634,6 @@ class Expression(SQLNode):
     """
     Expression is anything that computes a value.
     
-    TODO Put it inside where and update?
     """
     def sql(self) -> str:
         return ""
@@ -1048,7 +1047,7 @@ class Column:
 
     @staticmethod
     def random(name: Optional[str] = None, param_prob:Dict[str, float] = None) -> "Column":
-        prob = {"pk_p":0.0, "unq_p":0.005, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1}
+        prob = {"pk_p":0.0, "unq_p":0.001, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1}
         if param_prob is not None:
             prob.update(param_prob)
             
@@ -1784,7 +1783,7 @@ class With(SQLNode):
     names: List[str]
     querys: List[Select]
     main_query: SQLNode
-    recursive: bool = False #TODO: recursive
+    recursive: bool = False
 
     def sql(self) -> str:
         full_query = f"WITH {'RECURSIVE' if self.recursive else ''} "
@@ -1985,7 +1984,7 @@ class Index(SQLNode):
         if isinstance(table, View):
             return None # cannot index on View
         
-        prob = {"uniq_p":0.005, "where_p": 0.4, "rexp_index_p":0, "time_index_p":0, "std_index_p": 1}
+        prob = {"uniq_p":0.001, "where_p": 0.4, "rexp_index_p":0, "time_index_p":0, "std_index_p": 1}
         if param_prob is not None:
             prob.update(param_prob)
         prob.update({
