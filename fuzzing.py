@@ -118,7 +118,10 @@ class Fuzzing:
             if self.corpus and mut and random.random() < 0.5:
                 node = self.mutate() # runs mutation in the second run
             else:
-                node = self.get_random(table, tables)
+                try:
+                    node = self.get_random(table, tables)
+                except:
+                    node = self.mutate()
                 mut_q = True
 
             if not node: 
@@ -189,6 +192,7 @@ class Fuzzing:
                 test_query = valid_query
             else:
                 test_query = new_query + valid_query
+                
             lines_c, branch_c, taken_c, calls_c, msg = run_coverage(test_query)
             combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
             combined_query = new_query + valid_query

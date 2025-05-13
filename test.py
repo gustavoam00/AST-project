@@ -1,8 +1,9 @@
 import subprocess
 import argparse
-from metric import get_coverage, sql_cleaner, parse_metric, avg_counter
+from metric import get_coverage, sql_cleaner, parse_metric, avg_counter, avg_metric
 from pathlib import Path
 from config import TEST_FOLDER, BUGS_FOLDER, METRICS_FOLDER, SQLITE_VERSIONS
+from tqdm import tqdm
 import os
 
 LOCAL = True
@@ -21,11 +22,11 @@ def run_coverage(sql_query, db="test.db", timeout=1):
             cwd="/home/test/sqlite",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            text=False,
             check=True,
             timeout=timeout
         )
-        return get_coverage(result.stderr + "\n" + result.stdout)
+        return get_coverage(result.stderr.decode('utf-8', errors='ignore') + "\n" + result.stdout.decode('utf-8', errors='ignore'))
     except subprocess.TimeoutExpired as e:
         return 0, 0, 0, 0, str(e.stderr)
     except subprocess.CalledProcessError as e:
@@ -85,12 +86,21 @@ def run_test(queries, name):
 
     bugs = 0
 
+    
+    r1 = 0
+    r2 = 0
+
     for query in queries:
         cmd1 = f"/usr/bin/{SQLITE_VERSIONS[0]} {db1} \"{query}\""
         cmd2 = f"/usr/bin/{SQLITE_VERSIONS[1]} {db2} \"{query}\""
 
         out1, err1 = run_query(cmd1)
         out2, err2 = run_query(cmd2)
+
+        if err1:
+            r1 += 1
+        if err2:
+            r2 += 1
 
         log_output(file1, query, err1 or out1)
         log_output(file2, query, err2 or out2)
@@ -108,12 +118,42 @@ def run_test(queries, name):
                     f.write(f"-- {line}\n")
             bugs += 1
 
+        if err2 and out1:
+            with open(file_diff, "a") as f:
+                f.write(query + "\n")
+                f.write(f"{SQLITE_VERSIONS[0]} Output:\n")
+                for line in out1.splitlines():
+                    f.write(f"-- {line}\n")
+                f.write("\n")
+                f.write(f"{SQLITE_VERSIONS[1]} Output:\n")
+                for line in err2.splitlines():
+                    f.write(f"-- {line}\n")
+            bugs += 1
+
+        if err1 and out2:
+            with open(file_diff, "a") as f:
+                f.write(query + "\n")
+                f.write(f"{SQLITE_VERSIONS[0]} Output:\n")
+                for line in err1.splitlines():
+                    f.write(f"-- {line}\n")
+                f.write("\n")
+                f.write(f"{SQLITE_VERSIONS[1]} Output:\n")
+                for line in out2.splitlines():
+                    f.write(f"-- {line}\n")
+            bugs += 1
+
     if bugs == 0:
         for f in [file1, file2]:
             if os.path.exists(f):
                 os.remove(f)
     else:
         print(f"Bug found in {name}.sql")
+        file = os.path.join(BUGS_FOLDER, f"{name}_clean.sql")
+        with open(file, "w") as f:
+            for q in queries:
+                f.write(q + "\n")
+
+    print(r1, r2)
 
 def reset_db():
     for db in ["test.db", "test1.db", "test2.db"]:
@@ -129,7 +169,7 @@ def main():
     if args.type == "BUGS" or args.type == "BOTH":
         reset()
         sql_folder = Path(TEST_FOLDER)
-        for i, sql_file in enumerate(sql_folder.glob('*.sql')):
+        for i, sql_file in enumerate(tqdm(sql_folder.glob('*.sql'), desc="Testing for bugs")):
             with sql_file.open('r', encoding='utf-8') as f:
                 query = sql_cleaner(f.read())
                 run_test(query, sql_file.stem)
