@@ -2,9 +2,9 @@ import subprocess
 from .helper.helper import get_coverage, sql_cleaner
 from .helper.metric import parse_metric, avg_counter, avg_metric
 from pathlib import Path
-from .config import TEST_FOLDER, BUGS_FOLDER, STATS_FOLDER, SQLITE_VERSIONS, DB1, DB2, QUERY_FOLDER, WORD_DIR
+from .config import TEST_FOLDER, BUGS_FOLDER, STATS_FOLDER, SQLITE_VERSIONS, DB1, DB2, QUERY_FOLDER
 from tqdm import tqdm
-import os, argparse
+import os
 
 LOCAL = True
 
@@ -148,27 +148,26 @@ def run_test(queries, name):
             for q in queries:
                 f.write(q + "\n")
 
-    print(r1, r2)
-
 def reset_db():
     for db in [DB1, DB2]:
         if os.path.exists(db):
             os.remove(db)
 
 def main(args=None):
-    parser = argparse.ArgumentParser(description="Testing")
-    parser.add_argument("type", help="Select testing: BUGS, DATA", nargs="?", default="BUGS")
+    #parser = argparse.ArgumentParser(description="Testing")
+    #parser.add_argument("type", help="Select testing: BUGS, DATA", nargs="?", default="BUGS")
     
-    args = parser.parse_args(args)
+    #args = parser.parse_args(args)
 
-    if args.type == "BUGS":
-        reset()
-        sql_folder = Path(QUERY_FOLDER)
-        for i, sql_file in enumerate(tqdm(sql_folder.glob('*.sql'), desc="Testing for bugs")):
-            with sql_file.open('r', encoding='utf-8') as f:
-                query = sql_cleaner(f.read())
-                run_test(query, sql_file.stem)
+    #if args.type == "BUGS":
+    reset()
+    sql_folder = Path(QUERY_FOLDER)
+    for i, sql_file in enumerate(tqdm(sql_folder.glob('*.sql'), desc="Testing for bugs")):
+        with sql_file.open('r', encoding='utf-8') as f:
+            query = sql_cleaner(f.read())
+            run_test(query, sql_file.stem)
 
+    '''
     elif args.type == "DATA":
         metrics_folder = Path(STATS_FOLDER)
         counters = []
@@ -178,7 +177,8 @@ def main(args=None):
         with open(f"{TEST_FOLDER}average_count.txt", "w") as f:
             for k, v in avg_c.most_common():
                 f.write(f"{k}: {v}\n")
-
+    '''
+                
 if __name__ == "__main__":
     main()
 

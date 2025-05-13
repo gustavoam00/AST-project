@@ -24,22 +24,20 @@ This tool performs SQL query fuzzing using both a hybrid pipeline and a probabil
 
 After the docker image is built:
 
-1. Run the following commands to generate SQLite queries: 
+Run the following commands to generate SQLite queries: 
 ```bash
 # Coverage-guided Fuzzing Pipeline
-docker run sqlite3-fuzzing test-db FUZZ PIPELINE <cycles> <number_of_queries>
+docker run sqlite3-fuzzing test-db PIPELINE <cycles> <number_of_queries>
 
 # Probability-guided Random Query Generator
-docker run sqlite3-fuzzing test-db FUZZ RANDOM <cycles> <number_of_queries>
+docker run sqlite3-fuzzing test-db RANDOM <cycles> <number_of_queries>
 ```
-The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many ```.sql``` files it should generate, which can be used for bug testing.
+The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many ```.sql``` files it should generate, which can be used for bug testing. 
 
-2. To detect bugs we can run:
-```bash
-docker run sqlite3-fuzzing test-db TEST
-``` 
+After the queries are generated, the files are used to test for bugs.
 
 ---
+
 
 Use the appropriate command for your operating system:
 1. **macOS/Linux:**

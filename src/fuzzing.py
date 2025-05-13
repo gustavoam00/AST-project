@@ -353,13 +353,13 @@ def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float
 
     return cov, c, query, tables
 
-def main(args=None):
+def main():
     parser = argparse.ArgumentParser(description="Fuzzing")
     parser.add_argument("type", help="Select hybrid type: PIPELINE, RANDOM", nargs="?", default="PIPELINE")
     parser.add_argument("repeat", help="Number of fuzzing loops", nargs="?", default=1, type=int)
     parser.add_argument("sql", help="Number of .sql files", nargs="?", default=1, type=int)
     
-    args = parser.parse_args(args)
+    args = parser.parse_args()
 
     times = args.sql
 
