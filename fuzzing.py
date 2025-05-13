@@ -167,7 +167,7 @@ class Fuzzing:
         self.corpus = corpus # all the SQLNode in the query
         active = active # transation active
 
-        if self.needs_table and not updated_tables:
+        if (self.needs_table or self.rem_table) and not updated_tables:
             runtime = end_time - start_time
             return best_cov, best_c, new_query, updated_tables, self.corpus, best_msg, active, runtime
 
@@ -309,7 +309,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
 
     return cov, c, query, tables, corpus
 
-def random_query(repeat: int = 3, save: bool = True):
+def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float] = None):
     '''
     Fast query generator
     '''
@@ -317,11 +317,18 @@ def random_query(repeat: int = 3, save: bool = True):
     tables = []
 
     reset() # for local: resets the test.db and coverage information
-    query, tables = gen.randomQueryGen(cycle=repeat)
+    query, tables = gen.randomQueryGen(param_prob = param_prob, cycle=repeat)
 
-    lines_c, branch_c, taken_c, calls_c, msg = run_coverage(query, timeout=len(query)/10.0)
-    c = (lines_c, branch_c, taken_c, calls_c)
-    cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+    queries = []
+    for i in range(0, len(query), 250):
+        queries.append(query[i:i+250])
+
+    for q in queries:
+        lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=len(q)/10.0)
+        c = (lines_c, branch_c, taken_c, calls_c)
+        cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+
+    print(f"Average Coverage: {cov:5.2f}, Lines Coverage: {c[0]}, Branch Coverage: {c[1]} ")
 
     if save and cov != 0:
         err = save_error(msg, FUZZ_FOLDER + f"random_{lines_c:5.2f}_error.txt")
@@ -360,7 +367,7 @@ def main():
             pipeline = FUZZING_PIPELINE(prob)
             cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=args.repeat)
         elif args.type == 'RANDOM': 
-            cov, c, query, table = random_query(repeat=int(args.repeat))
+            cov, c, query, table = random_query(repeat=int(args.repeat), param_prob=PROB_TABLE)
 
     print(f"Final Lines Coverage: {c[0]}")
 
