@@ -6,7 +6,6 @@ from config import SEED, OPS, SQL_TYPES, TIME, VALUES, VIRTUAL
 import copy
 
 # random.seed(SEED)
-INSIDE_INDEX = False
 
 CALLABLE_VALUES = {
     "INTEGER": lambda: random.randint(-10000, 10000),
@@ -885,7 +884,7 @@ class InSubquery(Where):
     table_name: str
 
     def sql(self) -> str: 
-        return f"{self.table_name}.{self.column.name} IN ({self.subquery.sql()})" #is this missing the WHERE at the beginning of the string?
+        return f"{self.table_name}.{self.column.name} IN ({self.subquery.sql()})" 
 
     @staticmethod
     def random(table: "Table", other_tables: List["Table"], param_prob: Dict[str, float] = None, max_depth: int = 1) -> "InSubquery":
@@ -1733,7 +1732,7 @@ class With(SQLNode):
     recursive: bool = False
 
     def sql(self) -> str:
-        full_query = f"WITH {'RECURSIVE' if self.recursive else ''} "
+        full_query = f"WITH {'RECURSIVE ' if self.recursive else ''}"
         
         temp = []
         for i in range(len(self.names)):
@@ -1815,7 +1814,7 @@ class View(Table):
     temp: bool
 
     def sql(self) -> str:
-        return f"CREATE {'TEMP' if self.temp else ''} VIEW {self.name} AS {self.select.sql()}"
+        return f"CREATE {'TEMP ' if self.temp else ''}VIEW {self.name} AS {self.select.sql()}"
     
     @staticmethod
     def random(table: Table, other_tables: List[Table] = None, param_prob: Dict[str,float] = None) -> "View":
@@ -2258,6 +2257,7 @@ def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, floa
         "view":     0.1,
         "index":    0.1,
         "trigger":  0.1,
+        "vtable":   0.1,
         "insert":   0.2,
         "update":   0.2,
         "replace":  0.2,
@@ -2281,7 +2281,7 @@ def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, floa
         table = Table.random()
         tables.append(table)
         query.append(table.sql() + ";")
-        for i in range(1):
+        for _ in range(1):
             insert = Insert.random(table, param_prob=prob)
             query.append(insert.sql() + ";")
             
@@ -2290,7 +2290,7 @@ def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, floa
     indexes = []
     transaction_active = False
     save_points = []
-    for i in range(cycle):
+    for _ in range(cycle):
         try:
             if flip(prob["pragma"]) or debug:
                 pragma = Pragma.random()
@@ -2347,6 +2347,9 @@ def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, floa
                 trigger = Trigger.random(table, param_prob=prob)
                 triggers.append(trigger)
                 query.append(trigger.sql() + ";")
+            if flip(prob["vtable"]) or debug:
+                vtable = VirtualTable.random()
+                query.append(vtable.sql() + ";")
             
             table = random.choice(tables + views)
             if flip(prob["view"]) or debug:
