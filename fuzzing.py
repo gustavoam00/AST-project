@@ -2,7 +2,8 @@ import generator as gen
 import random, re, argparse, time
 from config import TEST_FOLDER, FUZZ_FOLDER, SEED, PROB_TABLE, SQL_KEYWORDS, SQL_OPERATORS
 from test import run_coverage, reset, LOCAL
-from metric import coverage_score, save_error, metric
+from helper.helper import coverage_score, save_error
+from helper.metric import extract_metric
 from tqdm import tqdm
 
 #random.seed(SEED)
@@ -192,7 +193,7 @@ class Fuzzing:
                 test_query = valid_query
             else:
                 test_query = new_query + valid_query
-                
+
             lines_c, branch_c, taken_c, calls_c, msg = run_coverage(test_query)
             combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
             combined_query = new_query + valid_query

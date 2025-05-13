@@ -1,6 +1,7 @@
 import subprocess
 import argparse
-from metric import get_coverage, sql_cleaner, parse_metric, avg_counter, avg_metric
+from helper.helper import get_coverage, sql_cleaner
+from helper.metric import parse_metric, avg_counter, avg_metric
 from pathlib import Path
 from config import TEST_FOLDER, BUGS_FOLDER, METRICS_FOLDER, SQLITE_VERSIONS
 from tqdm import tqdm
@@ -162,24 +163,26 @@ def reset_db():
 
 def main():
     parser = argparse.ArgumentParser(description="Testing")
-    parser.add_argument("type", help="Select testing: BUGS, DATA, BOTH", nargs="?", default="BUGS")
+    parser.add_argument("type", help="Select testing: BUGS, DATA", nargs="?", default="BUGS")
     
     args = parser.parse_args()
 
-    if args.type == "BUGS" or args.type == "BOTH":
+    if args.type == "BUGS":
         reset()
         sql_folder = Path(TEST_FOLDER)
         for i, sql_file in enumerate(tqdm(sql_folder.glob('*.sql'), desc="Testing for bugs")):
             with sql_file.open('r', encoding='utf-8') as f:
                 query = sql_cleaner(f.read())
                 run_test(query, sql_file.stem)
-    elif args.type == "DATA" or args.type == "BOTH":
+    elif args.type == "DATA":
         metrics_folder = Path(METRICS_FOLDER)
         counters = []
         for metric in metrics_folder.glob('*.txt'):
             counters.append(parse_metric(metric))
         avg_c = avg_counter(counters)
-        print(avg_c)
+        with open(f"{METRICS_FOLDER}average_count.txt", "w") as f:
+            for k, v in avg_c.most_common():
+                f.write(f"{k}: {v}\n")
 
 if __name__ == "__main__":
     main()
