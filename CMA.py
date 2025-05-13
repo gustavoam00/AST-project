@@ -1,6 +1,6 @@
 import cma
 import random, argparse
-from fuzzing import run_pipeline, FUZZING_PIPELINE
+from fuzzing import random_query
 from config import PROB_TABLE, SEED, TEST_FOLDER
 
 random.seed(SEED)
@@ -13,7 +13,7 @@ def dict_to_vector(prob_dict):
 def vector_to_dict(prob_vector):
     return {key: float(prob_vector[i]) for i, key in enumerate(PROB_KEYS)}
 
-def fuzz_optimize(fuzz_pipeline, prob: dict, popsize: int = 4, num_iterations: int = 6, repeat: int = 3):
+def fuzz_optimize(prob: dict, popsize: int = 4, num_iterations: int = 6):
     """
     CMA-ES evolution to tweak the probability values 
     """
@@ -33,41 +33,35 @@ def fuzz_optimize(fuzz_pipeline, prob: dict, popsize: int = 4, num_iterations: i
         for j, sol in enumerate(solutions):
             prob_dict = vector_to_dict(sol)
 
-            print(f"CMA-ES: {i+1}/{num_iterations} it {j+1}/{popsize} pop")
+            print(f"CMA-ES: {i+1:<2}/{num_iterations:<2} it {j+1:<2}/{popsize:<2} pop, Coverage: {cov:<5.2f}, Best: {best_cov:<5.2f}")
             
-            cov, c, query, tables, nodes = run_pipeline(0, [], [], [], fuzz_pipeline(prob_dict), repeat=repeat, desc=f"CMA-ES_{i}_{j}")
+            cov, c, query, tables = random_query(repeat=10, save=False, param_prob = prob_dict)
             rewards.append(-cov) 
 
             if cov > best_cov:
                 best_cov = cov
                 best_query = query
                 best_params = sol
-
-        with open(TEST_FOLDER + f"CMA-ES_{best_cov}_{i}.txt", "w") as f:
-            f.write("=== BEST RESULT ===\n")
-            f.write(f"Best Coverage: {best_cov}, {c}\n")
-            f.write(f"Best Query: {best_query}\n")
-            f.write(f"Best Probs: {vector_to_dict(best_params)}\n")
+                c = c
 
         es.tell(solutions, rewards)
-        es.disp()
+        #es.disp()
 
-    with open(TEST_FOLDER + f"CMA-ES_{popsize}_{num_iterations}_{repeat}.txt", "w") as f:
+    with open(TEST_FOLDER + f"CMA-ES_{popsize}_{num_iterations}.txt", "w") as f:
         f.write("\n=== BEST RESULT ===")
-        f.write(f"Best Coverage: {best_cov}, {c}")
-        f.write(f"Best Query: {best_query}")
+        f.write(f"Best Coverage: {best_cov}, {c}\n")
+        f.write(f"Best Query: {best_query}\n")
         f.write(f"Best Probs: {vector_to_dict(best_params)}")
 
 def main():
     parser = argparse.ArgumentParser(description="CMA-ES Fuzzing Optimizer")
     parser.add_argument("popsize", help="CMA-ES population size")
     parser.add_argument("iter", help="CMA-ES iterations")
-    parser.add_argument("repeat", help="Number of Fuzzing Pipeline Loops")
 
     args = parser.parse_args()
 
     prob = {k: 0.5 for k in PROB_TABLE}
-    fuzz_optimize(FUZZING_PIPELINE, prob, popsize=int(args.popsize), num_iterations=int(args.iter), repeat=int(args.repeat))
+    fuzz_optimize(prob, popsize=int(args.popsize), num_iterations=int(args.iter))
 
 if __name__ == "__main__":
     main()

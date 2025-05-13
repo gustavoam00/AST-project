@@ -19,7 +19,7 @@ FUZZING_PIPELINE = lambda x: [
     Fuzzing("Index", gen.Index, no_virt=True, commit=True, prob=x),
     Fuzzing("Delete", gen.Delete, mod_table=True, commit=True, prob=x), 
     Fuzzing("Replace", gen.Replace, mod_table=True, commit=True, prob=x),
-    Fuzzing("DropTable", gen.DropTable, rem_table=True, needs_table=True, prob=x),
+    Fuzzing("DropTable", gen.DropTable, rem_table=True, prob=x),
 ]
 
 def mutate_query(query: str) -> str:
@@ -28,12 +28,26 @@ def mutate_query(query: str) -> str:
     return mutation(query)
 
 def mutate_keyword(query: str) -> str:
-    if any(w in query for w in SQL_KEYWORDS):
+    mutation_type = random.choice(["replace", "remove", "add"])
+
+    if mutation_type == "replace":
         words = [w for w in SQL_KEYWORDS if w in query]
         if words:
             old_w = random.choice(words)
             new_w = random.choice(SQL_KEYWORDS)
-            return re.sub(old_w, new_w, query)
+            return re.sub(rf"\b{re.escape(old_w)}\b", new_w, query)
+
+    elif mutation_type == "remove":
+        words = [w for w in SQL_KEYWORDS if w in query]
+        if words:
+            remove = random.choice(words)
+            return re.sub(rf"\b{re.escape(remove)}\b", '', query).strip()
+
+    elif mutation_type == "add":
+        word = random.choice(SQL_KEYWORDS)
+        pos = random.randint(0, len(query))
+        return query[:pos] + " " + word + " " + query[pos:]
+
     return query
 
 def mutate_values(query: str) -> str:
@@ -100,10 +114,12 @@ class Fuzzing:
         valid queries are queries that are not None
         '''
         for _ in range(self.max):
-            if self.corpus and mut:
+            mut_q = False
+            if self.corpus and mut and random.random() < 0.5:
                 node = self.mutate() # runs mutation in the second run
             else:
                 node = self.get_random(table, tables)
+                mut_q = True
 
             if not node: 
                 self.invalid += 1
@@ -121,7 +137,7 @@ class Fuzzing:
             else:
                 new_query = random.choices(["EXPLAIN " + node.sql() + ";", node.sql() + ";"], weights=[0.1, 0.9], k=1)[0]
             
-            if self.corpus and mut:
+            if self.corpus and mut and mut_q:
                 new_query = mutate_query(new_query) # mutate on string
 
             self.valid += 1
@@ -151,8 +167,11 @@ class Fuzzing:
         self.corpus = corpus # all the SQLNode in the query
         active = active # transation active
 
-        while tries < self.threshold:
+        if (self.needs_table or self.rem_table) and not updated_tables:
+            runtime = end_time - start_time
+            return best_cov, best_c, new_query, updated_tables, self.corpus, best_msg, active, runtime
 
+        while tries < self.threshold:
             if tables:
                 table = random.choice(updated_tables)
                 while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
@@ -261,9 +280,15 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
         query.extend(pragma)
 
         reset()
-        lines_c, branch_c, taken_c, calls_c, msg = run_coverage(query, timeout=None)
-        c = (lines_c, branch_c, taken_c, calls_c)
-        cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+
+        queries = []
+        for i in range(0, len(query), 250):
+             queries.append(query[i:i+250])
+
+        for q in queries:
+            lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=None)
+            c = (lines_c, branch_c, taken_c, calls_c)
+            cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
     if save and cov > 0:
         err = save_error(msg, FUZZ_FOLDER + f"pipeline_{lines_c:5.2f}_error.txt")
@@ -276,13 +301,15 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
             f.write(f"Valid/Invalid: {total_valid}/{total_invalid}\n")
             f.write(f"Errors: {err}\n")
             f.write(f"Runtime: {total_runtime}\n")
-            f.write(f"Metrics: {metric(query)}\n")
+            counter = metric(query)
+            for k, v in counter.items():
+                f.write(f"  {k}: {v}\n")
         with open(TEST_FOLDER + f"pipeline_{lines_c:5.2f}.sql", "w") as f:
             f.write("\n".join(query))
 
     return cov, c, query, tables, corpus
 
-def random_query(repeat: int = 3, save: bool = True):
+def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float] = None):
     '''
     Fast query generator
     '''
@@ -290,11 +317,18 @@ def random_query(repeat: int = 3, save: bool = True):
     tables = []
 
     reset() # for local: resets the test.db and coverage information
-    query, tables = gen.randomQueryGen(cycle=repeat)
+    query, tables = gen.randomQueryGen(param_prob = param_prob, cycle=repeat)
 
-    lines_c, branch_c, taken_c, calls_c, msg = run_coverage(query, timeout=len(query)/10.0)
-    c = (lines_c, branch_c, taken_c, calls_c)
-    cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+    queries = []
+    for i in range(0, len(query), 250):
+        queries.append(query[i:i+250])
+
+    for q in queries:
+        lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=len(q)/10.0)
+        c = (lines_c, branch_c, taken_c, calls_c)
+        cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+
+    print(f"Average Coverage: {cov:5.2f}, Lines Coverage: {c[0]}, Branch Coverage: {c[1]} ")
 
     if save and cov != 0:
         err = save_error(msg, FUZZ_FOLDER + f"random_{lines_c:5.2f}_error.txt")
@@ -333,7 +367,7 @@ def main():
             pipeline = FUZZING_PIPELINE(prob)
             cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=args.repeat)
         elif args.type == 'RANDOM': 
-            cov, c, query, table = random_query(repeat=int(args.repeat))
+            cov, c, query, table = random_query(repeat=int(args.repeat), param_prob=PROB_TABLE)
 
     print(f"Final Lines Coverage: {c[0]}")
 
