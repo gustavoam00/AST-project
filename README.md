@@ -49,11 +49,13 @@ python fuzzing.py PIPELINE <cycles> <number_of_queries>
 python fuzzing.py RANDOM <cycles> <number_of_queries>
 ```
 The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many queries ```.sql``` it should generate. The queries are saved in folder ```test/``` and metrics and other information are saved in ```test/fuzz_results/``` as ```.txt``` files.
+
 2. Detect bugs by running:
 ```bash
 python test.py
 ``` 
 Bugs are saved in ```test/bugs/```. Make sure to put ```.sql``` queries into the ```test/`` folder to test for bugs.
+
 3. To analyze queries and collect metrics, run:
 ```bash
 python test.py DATA
