@@ -1,5 +1,4 @@
 import re
-from config import ERROR 
 
 def get_coverage(result: str) -> tuple[float, str]:
     lines = re.search(r"Lines executed:([\d.]+)% of (\d+)", result)
@@ -23,10 +22,10 @@ def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.0, 1.0)):
         weights[3] * calls
     ) / float(sum(weights))
     
-def save_error(msg: str, save: str) -> int:
+def save_error(msg: str, savepath: str, save: bool = False) -> int:
     errors = re.findall(r"(Error:.*)\n", msg)
-    if "Error" in msg and ERROR:
-        with open(save, "w") as f:
+    if "Error" in msg and save:
+        with open(savepath, "w") as f:
             f.write(f"Total Errors: {len(errors)}\n")
             for err in errors:
                 f.write(f"{err}\n")

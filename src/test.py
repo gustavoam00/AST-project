@@ -1,11 +1,10 @@
 import subprocess
-import argparse
-from helper.helper import get_coverage, sql_cleaner
-from helper.metric import parse_metric, avg_counter, avg_metric
+from .helper.helper import get_coverage, sql_cleaner
+from .helper.metric import parse_metric, avg_counter, avg_metric
 from pathlib import Path
-from config import TEST_FOLDER, BUGS_FOLDER, METRICS_FOLDER, SQLITE_VERSIONS
+from .config import TEST_FOLDER, BUGS_FOLDER, STATS_FOLDER, SQLITE_VERSIONS, DB1, DB2, QUERY_FOLDER
 from tqdm import tqdm
-import os
+import os, argparse
 
 LOCAL = True
 
@@ -35,7 +34,7 @@ def run_coverage(sql_query, db="test.db", timeout=1):
 
 def reset():
     reset_cmd = [
-        "rm -f test.db", 
+        f"rm -f test.db", 
         "find . -name '*.gcda' -delete",  
         "find . -name '*.gcov' -delete" 
     ]
@@ -78,22 +77,18 @@ def log_output(filepath, query, output):
 def run_test(queries, name):
     reset_db() # resets the database
 
-    db1 = "test1.db"
-    db2 = "test2.db"
-
     file1 = os.path.join(BUGS_FOLDER, f"{name}_{SQLITE_VERSIONS[0]}.sql")
     file2 = os.path.join(BUGS_FOLDER, f"{name}_{SQLITE_VERSIONS[1]}.sql")
     file_diff = os.path.join(BUGS_FOLDER, f"{name}_diff.txt")
 
     bugs = 0
 
-    
     r1 = 0
     r2 = 0
 
     for query in queries:
-        cmd1 = f"/usr/bin/{SQLITE_VERSIONS[0]} {db1} \"{query}\""
-        cmd2 = f"/usr/bin/{SQLITE_VERSIONS[1]} {db2} \"{query}\""
+        cmd1 = f"/usr/bin/{SQLITE_VERSIONS[0]} {DB1} \"{query}\""
+        cmd2 = f"/usr/bin/{SQLITE_VERSIONS[1]} {DB2} \"{query}\""
 
         out1, err1 = run_query(cmd1)
         out2, err2 = run_query(cmd2)
@@ -157,30 +152,31 @@ def run_test(queries, name):
     print(r1, r2)
 
 def reset_db():
-    for db in ["test.db", "test1.db", "test2.db"]:
+    for db in [DB1, DB2]:
         if os.path.exists(db):
             os.remove(db)
 
-def main():
+def main(args=None):
     parser = argparse.ArgumentParser(description="Testing")
     parser.add_argument("type", help="Select testing: BUGS, DATA", nargs="?", default="BUGS")
     
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     if args.type == "BUGS":
         reset()
-        sql_folder = Path(TEST_FOLDER)
+        sql_folder = Path(QUERY_FOLDER)
         for i, sql_file in enumerate(tqdm(sql_folder.glob('*.sql'), desc="Testing for bugs")):
             with sql_file.open('r', encoding='utf-8') as f:
                 query = sql_cleaner(f.read())
                 run_test(query, sql_file.stem)
+
     elif args.type == "DATA":
-        metrics_folder = Path(METRICS_FOLDER)
+        metrics_folder = Path(STATS_FOLDER)
         counters = []
         for metric in metrics_folder.glob('*.txt'):
             counters.append(parse_metric(metric))
         avg_c = avg_counter(counters)
-        with open(f"{METRICS_FOLDER}average_count.txt", "w") as f:
+        with open(f"{TEST_FOLDER}average_count.txt", "w") as f:
             for k, v in avg_c.most_common():
                 f.write(f"{k}: {v}\n")
 

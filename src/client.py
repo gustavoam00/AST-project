@@ -1,9 +1,9 @@
 import docker
 import logging
-from bugs import BUGS
+from data.bugs import BUGS
 from tqdm import tqdm
-import generator as gen
-from metric import get_coverage, metric, coverage_score, save_error
+from helper.helper import get_coverage, coverage_score, save_error
+from helper.metric import extract_metric
 
 #logging.disable(logging.INFO) 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -12,7 +12,7 @@ LOCAL = False
 SQLITE_VERSIONS = ["sqlite3-3.26.0", "sqlite3-3.39.4"]
 DOCKER_IMAGE = "sqlite3-fuzzing" #"theosotr/sqlite3-test"
 
-def coverage_test(sql_query, db="test.db", timeout=1):
+def run_coverage(sql_query, db="test.db", timeout=1):
     """
     Test coverage for sqlite3-3.26.0
     """
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         sql = f.read()
         FULL = [stmt.strip() + ";" for stmt in sql.split(";") if stmt.strip()]
 
-    lines_c, branch_c, taken_c, calls_c, msg = coverage_test(FULL)
+    lines_c, branch_c, taken_c, calls_c, msg = run_coverage(FULL)
     combined_cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
     
     save_error(msg, "test/error/error_test.txt")

@@ -43,24 +43,24 @@ Use the appropriate command for your operating system:
 1. Inside the docker, run the following commands to generate SQLite queries: 
 ```bash
 # Hybrid fuzzing pipeline
-python fuzzing.py PIPELINE <cycles> <number_of_queries>
+python main.py FUZZ PIPELINE <cycles> <number_of_queries>
 
 # Probability-based random generator
-python fuzzing.py RANDOM <cycles> <number_of_queries>
+python main.py FUZZ RANDOM <cycles> <number_of_queries>
 ```
-The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many queries ```.sql``` it should generate. The queries are saved in folder ```test/``` and metrics and other information are saved in ```test/fuzz_results/``` as ```.txt``` files.
+The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many ```.sql``` files it should generate. The queries are saved in folder ```data/test/queries/``` and metrics and other information are saved in ```data/test/stats/``` as ```.txt``` files.
 
 2. Detect bugs by running:
 ```bash
-python test.py
+python main.py TEST
 ``` 
-Bugs are saved in ```test/bugs/```. Make sure to put ```.sql``` queries into the ```test/`` folder to test for bugs.
+Bugs are saved in ```data/test/bugs/```. Make sure to put ```.sql``` queries into the ```data/test/queries`` folder to test for bugs.
 
 3. To analyze queries and collect metrics, run:
 ```bash
-python test.py DATA
+python main.py TEST DATA
 ```
-Make sure to put ```.txt``` of metrics data in ```test/fuzz_results/```
+Make sure to run ```main.py FUZZ``` beforehand to generate metrics, or put ```.txt``` of metrics data in ```data/test/stats/``` folder
 
 3.26.0 -> 3.39.4
 https://www3.sqlite.org/changes.html

@@ -4,7 +4,7 @@ import time
 import glob
 import shutil
 import multiprocessing
-import generator as gen
+import src.generator as gen
 
 def worker(prob, stop_event, worker_id, output_dir):
     text_path = os.path.join(output_dir, f"worker_{worker_id}.txt")

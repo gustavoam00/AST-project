@@ -1,7 +1,7 @@
 import cma
 import random, argparse
-from fuzzing import random_query
-from config import PROB_TABLE, SEED, TEST_FOLDER
+from .fuzzing import random_query
+from .config import PROB_TABLE, SEED, STATS_FOLDER
 
 random.seed(SEED)
 
@@ -47,7 +47,7 @@ def fuzz_optimize(prob: dict, popsize: int = 4, num_iterations: int = 6):
         es.tell(solutions, rewards)
         #es.disp()
 
-    with open(TEST_FOLDER + f"CMA-ES_{popsize}_{num_iterations}.txt", "w") as f:
+    with open(F"{STATS_FOLDER}CMA-ES_{popsize}_{num_iterations}.txt", "w") as f:
         f.write("\n=== BEST RESULT ===")
         f.write(f"Best Coverage: {best_cov}, {c}\n")
         f.write(f"Best Query: {best_query}\n")

@@ -2,7 +2,7 @@ import random
 import string
 from dataclasses import dataclass, field
 from typing import List, Optional, Union, Dict
-from config import SEED, OPS, SQL_TYPES, TIME, VALUES, VIRTUAL
+from .config import SEED, OPS, SQL_TYPES, TIME, VALUES, VIRTUAL
 import copy
 
 # random.seed(SEED)
