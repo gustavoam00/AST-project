@@ -2,7 +2,7 @@ import subprocess
 from .helper.helper import get_coverage, sql_cleaner
 from .helper.metric import parse_metric, avg_counter, avg_metric
 from pathlib import Path
-from .config import TEST_FOLDER, BUGS_FOLDER, STATS_FOLDER, SQLITE_VERSIONS, DB1, DB2, QUERY_FOLDER
+from .config import TEST_FOLDER, BUGS_FOLDER, STATS_FOLDER, SQLITE_VERSIONS, DB1, DB2, QUERY_FOLDER, WORD_DIR
 from tqdm import tqdm
 import os, argparse
 
@@ -57,7 +57,6 @@ def run_query(cmd):
     try:
         result = subprocess.run(
             ["bash", "-c", cmd],
-            cwd="/usr/bin/test-db",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

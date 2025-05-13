@@ -5,7 +5,7 @@ This tool performs SQL query fuzzing using both a hybrid pipeline and a probabil
 
 ## Features
 
-- Hybrid and random SQL query generation
+- Coverage-guided Fuzzing Pipeline and Probability-guided SQLite Query Generators
 - Bug discovery and metrics collection
 
 ---
@@ -19,6 +19,25 @@ This tool performs SQL query fuzzing using both a hybrid pipeline and a probabil
    Navigate to the directory containing the `Dockerfile` and run:
    ```bash
    docker build -t sqlite3-fuzzing .
+
+## Running the Fuzzer and Testing
+
+After the docker image is built:
+
+1. Run the following commands to generate SQLite queries: 
+```bash
+# Coverage-guided Fuzzing Pipeline
+docker run sqlite3-fuzzing test-db FUZZ PIPELINE <cycles> <number_of_queries>
+
+# Probability-guided Random Query Generator
+docker run sqlite3-fuzzing test-db FUZZ RANDOM <cycles> <number_of_queries>
+```
+The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many ```.sql``` files it should generate, which can be used for bug testing.
+
+2. To detect bugs we can run:
+```bash
+docker run sqlite3-fuzzing test-db TEST
+``` 
 
 ---
 
@@ -37,15 +56,12 @@ Use the appropriate command for your operating system:
 
 ---
 
-
-## Running the Fuzzer and Testing
-
 1. Inside the docker, run the following commands to generate SQLite queries: 
 ```bash
-# Hybrid fuzzing pipeline
+# Coverage-guided Fuzzing Pipeline
 python main.py FUZZ PIPELINE <cycles> <number_of_queries>
 
-# Probability-based random generator
+# Probability-guided Random Query Generator
 python main.py FUZZ RANDOM <cycles> <number_of_queries>
 ```
 The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many ```.sql``` files it should generate. The queries are saved in folder ```data/test/queries/``` and metrics and other information are saved in ```data/test/stats/``` as ```.txt``` files.
@@ -54,7 +70,7 @@ The first number is the number of cycles (how many times should it cycle through
 ```bash
 python main.py TEST
 ``` 
-Bugs are saved in ```data/test/bugs/```. Make sure to put ```.sql``` queries into the ```data/test/queries`` folder to test for bugs.
+Bugs are saved in ```data/test/bugs/```. Make sure to put ```.sql``` queries into the ```data/test/queries``` folder to test for bugs.
 
 3. To analyze queries and collect metrics, run:
 ```bash
@@ -64,3 +80,4 @@ Make sure to run ```main.py FUZZ``` beforehand to generate metrics, or put ```.t
 
 3.26.0 -> 3.39.4
 https://www3.sqlite.org/changes.html
+
