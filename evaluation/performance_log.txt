@@ -2,15 +2,15 @@ Query generation log
 --------------------
 Duration (seconds): 300.00
 Number of workers: 8
-Total queries: 6497181
-Throughput: 1299436.20 queries/minute
+Total query groups: 6497181
+Throughput: 1299436.20 groups/minute
 
 Worker breakdown:
-  Worker 0: 811664 queries
-  Worker 1: 806578 queries
-  Worker 2: 808947 queries
-  Worker 3: 816331 queries
-  Worker 4: 816140 queries
-  Worker 5: 815542 queries
-  Worker 6: 812431 queries
-  Worker 7: 809548 queries
+  Worker 0: 811664 query groups
+  Worker 1: 806578 query groups
+  Worker 2: 808947 query groups
+  Worker 3: 816331 query groups
+  Worker 4: 816140 query groups
+  Worker 5: 815542 query groups
+  Worker 6: 812431 query groups
+  Worker 7: 809548 query groups

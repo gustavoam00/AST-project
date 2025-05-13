@@ -1,6 +1,8 @@
 SQL Clause Frequency Evaluation
-Total Queries: 10000
-Average Clauses per Query: 25.96
+Total Groups: 10000
+Total Queries: 114962
+Average Clauses per Group: 25.96
+Average Clauses per Query: 2.26
 -------------------------------
 CREATE TABLE: 19302
 CREATE VIEW: 2938

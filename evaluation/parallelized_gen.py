@@ -60,11 +60,11 @@ def parallelized_query_gen(param_prob, duration_seconds, num_workers, output_dir
         log.write(f"--------------------\n")
         log.write(f"Duration (seconds): {duration_seconds:.2f}\n")
         log.write(f"Number of workers: {num_workers}\n")
-        log.write(f"Total queries: {total}\n")
-        log.write(f"Throughput: {queries_per_minute:.2f} queries/minute\n\n")
+        log.write(f"Total query groups: {total}\n")
+        log.write(f"Throughput: {queries_per_minute:.2f} groups/minute\n\n")
         log.write("Worker breakdown:\n")
         for worker_id, count in worker_counts:
-            log.write(f"  Worker {worker_id}: {count} queries\n")
+            log.write(f"  Worker {worker_id}: {count} query groups\n")
     
     for file in glob.glob(os.path.join(output_dir, "worker_*.txt")):
         os.remove(file)
