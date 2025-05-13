@@ -126,14 +126,13 @@ PROB_TABLE = {
 
     # Drop
     "ifex_p":       0,
+    "fktbl_p":      0.5,
     
     # Transactions
     "rollback_p":   0.0,
     "save_p":       0.25,
     "release_p":    0.5,
 
-    # Dates
-    "date_p":       0.1,
 }
 '''
     "alt_ren": 0.1, 
