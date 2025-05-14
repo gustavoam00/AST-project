@@ -173,7 +173,6 @@ class Fuzzing:
         active = active # transation active
 
         if (self.needs_table or self.rem_table) and not updated_tables:
-            runtime = end_time - start_time
             return best_cov, best_c, new_query, updated_tables, self.corpus, best_msg, active, runtime
 
         while tries < self.threshold:
@@ -204,7 +203,8 @@ class Fuzzing:
                 best_c = (lines_c, branch_c, taken_c, calls_c)
                 best_msg = msg
                 new_query = combined_query
-                self.corpus.append(node)
+                if node not in self.corpus:
+                    self.corpus.append(node)
                 active = val_active
 
                 if "EXPLAIN" not in valid_query[0] and not mut:
