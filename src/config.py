@@ -142,6 +142,7 @@ PROB_TABLE = {
 
     # randomQueryGen
     "table"  :  0.3,
+    "init_ins": 1.0,
     "alt_ren":  0.2, 
     "alt_add":  0.2,
     "alt_col":  0.2,

@@ -108,6 +108,7 @@ def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
         (f"LIKELY({expr})", dtype),
         (f"UNLIKELY({expr})", dtype),
         (f"LIKELIHOOD({expr}, 0.5)", dtype),
+        (f"QUOTE({expr})", "TEXT"),
     ]
 
     if dtype == "TEXT":
@@ -169,8 +170,8 @@ def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
             (f"{expr} / NULLIF({0},{1})", "REAL"),
             (f"{expr} / NULLIF({0},{0})", "NULL"),
         ])
-    elif dtype == "TYPELESS":
-        return expr, dtype
+    # elif dtype == "TYPELESS":
+    #     return expr, dtype
 
     return random.choice(transformations)
 
@@ -980,8 +981,8 @@ class Column:
         else:
             pass #apparently putting random strings as user defined types is allowed
         
-        # if self.primary_key:
-        #     col.append("PRIMARY KEY")
+        if self.primary_key:
+            col.append("PRIMARY KEY")
         if self.notnull:
             col.append("NOT NULL")
         if self.unique:
@@ -994,7 +995,7 @@ class Column:
 
     @staticmethod
     def random(name: Optional[str] = None, param_prob:Dict[str, float] = None) -> "Column":
-        prob = {"pk_p":0.0, "unq_p":0.001, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1}
+        prob = {"pk_p":0.0, "unq_p":0.001, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1, "null_dft_p":0}
         if param_prob is not None:
             prob.update(param_prob)
             
@@ -1015,9 +1016,9 @@ class Column:
         #     temp_table.columns.append(fake_col)
         #     check = Predicate.random(temp_table, rand_tbl=0)
 
-        default = random_value(dtype, null_chance=0) if flip(prob["dft_p"]) and not primary_key and not unique else None
+        default = random_value(dtype, null_chance=prob["null_dft_p"]) if flip(prob["dft_p"]) and not primary_key and not unique else None
         notnull = default and flip(prob["nnl_p"])
-        nullable = not primary_key and not notnull
+        nullable = not primary_key and (not notnull or default)
         
         return Column(name, dtype, nullable, primary_key, notnull, unique, check, default)
     
@@ -1071,14 +1072,18 @@ class Table(SQLNode):
         return [col.name for col in self.columns]
     
     @staticmethod
-    def random(name: Optional[str] = None, min_cols: int = 2, max_cols: int = 6) -> "Table":
+    def random(name: Optional[str] = None, min_cols: int = 1, max_cols: int = 5, param_prob:Dict[str, float] = None) -> "Table":
+        prob = {}
+        if param_prob is not None:
+            prob.update(param_prob)
+        
         name = name or random_name("tbl")
         num_cols = random.randint(min_cols, max_cols)
 
         columns = []
         for i in range(num_cols):
             # primary key only for first column and try at least 1 non unique col
-            prob = {"pk_p":0.1 if i==0 else 0, "unq_p": 0 if i==0 or i==1 else 0.05}
+            prob.update({"pk_p":param_prob["pk_p"] if i==0 else 0, "unq_p": 0 if i==0 or i==1 else param_prob["unq_p"]})
             col = Column.random(param_prob=prob)
             columns.append(col)
         return Table(name, columns)
@@ -2248,6 +2253,7 @@ def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, floa
     """
     prob = {   
         "table"  :  0.3,
+        "init_ins": 1.0,
         "alt_ren":  0.2, 
         "alt_add":  0.2,
         "alt_col":  0.2,
@@ -2278,12 +2284,13 @@ def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, floa
         
     tables = context
     if not context:
-        table = Table.random()
+        table = Table.random(param_prob=prob)
         tables.append(table)
         query.append(table.sql() + ";")
-        for _ in range(1):
-            insert = Insert.random(table, param_prob=prob)
-            query.append(insert.sql() + ";")
+        if flip(prob["init_ins"]):
+            for _ in range(1):
+                insert = Insert.random(table, param_prob=prob)
+                query.append(insert.sql() + ";")
             
     views = []
     triggers = []

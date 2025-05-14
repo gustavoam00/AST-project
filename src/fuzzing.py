@@ -380,7 +380,7 @@ def main(args=None, remain_args=None):
             pipeline = FUZZING_PIPELINE(prob)
             cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=other_args.repeat)
         elif args.type == 'RANDOM': 
-            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=None, cov_test=True)
+            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=PROB_TABLE, cov_test=True)
 
 if __name__ == "__main__":
     main()
