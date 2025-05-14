@@ -36,7 +36,15 @@ After the docker image is built, run and use the appropriate command to generate
 
 3. **Windows (PowerShell):**
     ```bash
-    docker run -it -v "${PWD}":/app sqlite3-fuzzing test-db <type> <cycles> <number_of_sql>
+    docker run -it -v "${PWD}:/app" sqlite3-fuzzing test-db <type> <cycles> <number_of_sql>
+    ```
+
+    If you get an `invalid reference format` error, try removing the quotes:
+
+    ```bash
+    docker run -it -v ${PWD}:/app sqlite3-fuzzing test-db <type> <cycles> <number_of_sql>
+    ```
+
 
 - ```<type>```: specifies the mode:
     - ```PIPELINE```: Coverage-guided Fuzzing Pipeline
