@@ -255,7 +255,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
     total_valid = 0
     total_invalid = 0
 
-    init_pipeline = [Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False)] 
+    init_pipeline = [Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=True)] 
     test_pipeline = init_pipeline + random.choices(fuzz_pipeline, k = random.randint(5, len(fuzz_pipeline)))
 
     reset() # for local: resets the test.db and coverage information
@@ -340,10 +340,10 @@ def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float
     stop = time.time()
     if save:
         if cov_test:
-            filepath = f"random_{lines_c:5.2f}"
+            filepath = f"random_{lines_c:5.2f}_{random.randint(1, 10000000)}"
             err = save_error(msg, f"{ERROR_FOLDER}{filepath}.txt")
         else:
-            filepath = f"random_{random.randint(1, 1000000)}"
+            filepath = f"random_{random.randint(1, 10000000)}"
         with open(f"{STATS_FOLDER}{filepath}.txt", "w") as f:
             if cov_test:
                 f.write(f"Average Coverage: {cov:5.2f}\n") 
@@ -372,15 +372,17 @@ def main(args=None, remain_args=None):
     times = other_args.sql
 
     c = (0, 0, 0, 0)
-    for _ in range(times):
-        if args.type == 'PIPELINE': 
+    
+    if args.type == 'PIPELINE': 
+        for _ in range(times):
             prob = {k: (0.05 if 0 <= v and v <= 0.01 else v) for k, v in PROB_TABLE.items()}
             prob = {k: ( 0.5 if v == 1 else v) for k, v in prob.items()}
             prob = {k: ( 0.9 if v >= 0.95 else v) for k, v in prob.items()}
             pipeline = FUZZING_PIPELINE(prob)
             cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=other_args.repeat)
-        elif args.type == 'RANDOM': 
-            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=None, cov_test=True)
+    elif args.type == 'RANDOM': 
+        for _ in tqdm(range(times), desc="Generating:"):
+            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=PROB_TABLE, cov_test=True)
 
 if __name__ == "__main__":
     main()
