@@ -207,9 +207,9 @@ class Fuzzing:
                 active = val_active
 
                 if "EXPLAIN" not in valid_query[0] and not mut:
-                    if self.rem_table: # alter table
+                    if self.rem_table and table in updated_tables: # alter table
                         updated_tables.remove(table)
-                    if self.gen_table and node.columns: # view, table, alter table, virtual table
+                    if self.gen_table and node and node.columns: # view, table, alter table, virtual table
                         updated_tables.append(node)
                         init_query += valid_query
 
