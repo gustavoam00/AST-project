@@ -6,7 +6,6 @@ from .helper.helper import coverage_score, save_error
 from .helper.metric import extract_metric
 from tqdm import tqdm
 
-
 #random.seed(SEED)
 
 FUZZING_PIPELINE = lambda x: [
@@ -240,7 +239,7 @@ class Fuzzing:
 def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes: list, fuzz_pipeline: list[Fuzzing], 
                  repeat: int = 1, save: bool = True, threshold: int = 10, desc: str = ""):
     '''
-    Hybrid Pipeline Fuzzer with query generator and mutator
+    Coverage-guided Pipeline Fuzzer with query generator and mutator
     '''
     total_runtime = 0
     
@@ -314,7 +313,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
 
 def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float] = None, cov_test: bool = True):
     '''
-    Fast query generator
+    Fast query generator using probability-based method
     '''
     start = time.time()
     query = []

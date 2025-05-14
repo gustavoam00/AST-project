@@ -24,7 +24,7 @@ def random_name(prefix: str = "x", length: int = 5) -> str:
     Returns:
         str: the random string
     """
-    suffix = ''.join(random.choices(string.ascii_lowercase, k=length)) #add string.digits?
+    suffix = ''.join(random.choices(string.ascii_lowercase, k=length))
     return f"{prefix}_{suffix}"
 
 def random_type() -> str:
@@ -140,7 +140,7 @@ def apply_random_formula(expr: str, dtype: str) -> tuple[str, str]:
             (f"{random_value('INTEGER', null_chance=0)} * {expr}", "INTEGER"),
             (f"{expr} / {nonzero_random_value(dtype)}", "REAL"),
         ])
-    elif dtype in ("INTEGER", "REAL"): #it seems that for the most part TEXT can alwys be converted to Numerical, so all of these could be used?
+    elif dtype in ("INTEGER", "REAL"): 
         transformations.extend([
             (f"ABS({expr})", dtype),
             (f"ROUND({expr})", dtype),
@@ -266,7 +266,6 @@ def random_expression(dtype:str="TYPELESS") -> str:
 class SQLNode:
     def sql(self) -> str:
         return ""
-        #raise NotImplementedError
 
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -291,8 +290,6 @@ class Predicate(SQLNode):
         if sub_allow:
             predicate_classes += [Exists]
         
-        # if col.dtype == "INTEGER" or col.dtype == "REAL":
-        #     predicate_classes.append(Between)
         if col.dtype == "TEXT":
             predicate_classes.append(Like)
         
@@ -324,7 +321,6 @@ class Comparison(Predicate):
         dtype = col.dtype
         op = random.choice(OPS[dtype])
         val = Expression.random(dtype=dtype, no_cols=True, param_prob=prob).sql()
-        # val = random_value(dtype, prob["comp_nullc"], prob["comp_callc"])
         return Comparison(col, op, val, table_name)
     
     def mutate(self) -> "Comparison":
@@ -481,7 +477,6 @@ class InList(Predicate):
         })
         count = random.randint(2, 5)
         values = [Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql() for _ in range(count)]
-        # values = [random_value(col.dtype, prob["inli_nullc"], prob["inli_callc"]) for _ in range(count)]
         return InList(col, values, table_name)
     
     def mutate(self) -> "InList":
@@ -861,7 +856,7 @@ class Where(SQLNode):
             if no_sub:
                 return Predicate.random(table, sub_allow=False, param_prob=prob) # Index does not accept subqueries
             elif other_tables and flip(prob["sub_p"]):
-                return InSubquery.random(table, other_tables, max_depth=max_depth - 1, param_prob=prob) #{"where_p":prob["where_p"]})
+                return InSubquery.random(table, other_tables, max_depth=max_depth - 1, param_prob=prob)
             elif flip(prob["pred_p"]):
                 return Predicate.random(table, param_prob=prob)
             else:
@@ -969,8 +964,8 @@ class Column:
     nullable: bool = True
     primary_key: bool = False
     notnull: bool = False
-    unique: bool = False #unique and primary key are likely to cause an error bc of randomly generating same value, integer worst
-    check: Optional[Predicate] = None #checking enforces a predicate that is basically never gonna be satisfied, causing crashes
+    unique: bool = False 
+    check: Optional[Predicate] = None #checking enforces a predicate that is never satisfied
     default: Optional[str] = None
     from_table: str = ""
 
@@ -979,7 +974,7 @@ class Column:
         if self.dtype != "TYPELESS":
             col.append(self.dtype)
         else:
-            pass #apparently putting random strings as user defined types is allowed
+            pass #no specification
         
         if self.primary_key:
             col.append("PRIMARY KEY")
@@ -1009,12 +1004,7 @@ class Column:
         primary_key = flip(prob["pk_p"]) and dtype != "TYPELESS"
         unique = not primary_key and flip(prob["unq_p"])
 
-        check = None 
-        # if flip(prob["cck_p"]):
-        #     temp_table = Table(name="fake", columns=[])
-        #     fake_col = Column(name=name, dtype=dtype)
-        #     temp_table.columns.append(fake_col)
-        #     check = Predicate.random(temp_table, rand_tbl=0)
+        check = None
 
         default = random_value(dtype, null_chance=prob["null_dft_p"]) if flip(prob["dft_p"]) and not primary_key and not unique else None
         notnull = default and flip(prob["nnl_p"])
@@ -1248,7 +1238,6 @@ class Insert(SQLNode):
                     prob["rexp_p"] = 0
                     prob["std_p"] = 1
                 value = Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql()
-                # value = random_value(col.dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
                 vals[i].append(value)
 
         return Insert(table=table, columns=cols, values=vals, conflict_action=conflict_action, default=default, full=full)
@@ -1439,7 +1428,6 @@ class Replace(SQLNode):
                     prob["rexp_p"] = 0
                     prob["std_p"] = 1
                 value = Expression.random(dtype=col.dtype, no_cols=True, param_prob=prob).sql()
-                # value = random_value(col.dtype, null_chance=prob["null_p"], callable_chance=prob["call_p"])
                 vals[i].append(value)
 
         return Replace(table=table, columns=cols, values=vals, default=default, full=full)
@@ -1769,7 +1757,7 @@ class With(SQLNode):
             main_query = Select.random(w_table, param_cols=cols, param_prob=prob)
         else:
             fn = random.choice([Delete.random, Insert.random, Replace.random, Update.random])
-            main_query = fn(table, param_prob=prob)#using the w_table inside these is pretty complicated, so the with here is useless but correct syntax
+            main_query = fn(table, param_prob=prob)
         
         return With(names=with_names, querys=inner_selects, main_query=main_query, recursive=recursive)
     
@@ -2044,7 +2032,7 @@ class Trigger(SQLNode):
             if flip(0.25):
                 statements.append(Select.random(table, param_prob=prob).sql()+";")
                 continue
-            insert = Insert.random(table, non_unique=True, param_prob=prob) #param_prob={"dft_p":0, "conf_p":0.9})
+            insert = Insert.random(table, non_unique=True, param_prob=prob)
             if not insert or flip(0.33):
                 statements.append(Delete.random(table, param_prob=prob).sql()+";")
                 continue
@@ -2330,7 +2318,7 @@ def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, floa
             if flip(prob["alt_ren"]) or debug and not table.viewed:
                 new_table = AlterTable.random_tbl_rename(table)
                 if new_table:
-                    tables.remove(table) # renamed name of table, table does not exist anymore
+                    tables.remove(table) # renamed table -> table does not exist
                     tables.append(new_table)
                     query.append(new_table.sql() + ";")
                     table = random.choice(tables)
@@ -2412,11 +2400,5 @@ def randomQueryGen(query: Optional[List[str]] = None, param_prob: Dict[str, floa
     return query, tables
         
 if __name__ == "__main__":
-    # table = Table.random()
-    # select = Select.random(table)
-    # print(select.sql())
-    # for i in range(5):
-    #     print(select.mutate().sql())
-
     print(randomQueryGen(debug=False, cycle=1))
 

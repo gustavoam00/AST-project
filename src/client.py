@@ -1,6 +1,5 @@
 import docker
 import logging
-from data.bugs import BUGS
 from tqdm import tqdm
 from helper.helper import get_coverage, coverage_score, save_error
 from helper.metric import extract_metric
