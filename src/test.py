@@ -162,7 +162,8 @@ def main(args=None):
     #if args.type == "BUGS":
     reset()
     sql_folder = Path(QUERY_FOLDER)
-    for i, sql_file in enumerate(tqdm(sql_folder.glob('*.sql'), desc="Testing for bugs")):
+    sql_files = list(sql_folder.glob('*.sql'))  
+    for i, sql_file in enumerate(tqdm(sql_files, desc="Testing for bugs")):
         with sql_file.open('r', encoding='utf-8') as f:
             query = sql_cleaner(f.read())
             run_test(query, sql_file.stem)
