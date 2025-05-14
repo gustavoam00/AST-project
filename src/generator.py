@@ -995,7 +995,7 @@ class Column:
 
     @staticmethod
     def random(name: Optional[str] = None, param_prob:Dict[str, float] = None) -> "Column":
-        prob = {"pk_p":0.0, "unq_p":0.001, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1, "null_dft_p":0}
+        prob = {"pk_p":0.0, "unq_p":0.001, "dft_p":0.2, "nnl_p":0.01, "cck_p":0.3, "typeless_p":0.1, "null_dft_p":0.001}
         if param_prob is not None:
             prob.update(param_prob)
             

@@ -340,10 +340,10 @@ def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float
     stop = time.time()
     if save:
         if cov_test:
-            filepath = f"random_{lines_c:5.2f}"
+            filepath = f"random_{lines_c:5.2f}_{random.randint(1, 10000000)}"
             err = save_error(msg, f"{ERROR_FOLDER}{filepath}.txt")
         else:
-            filepath = f"random_{random.randint(1, 1000000)}"
+            filepath = f"random_{random.randint(1, 10000000)}"
         with open(f"{STATS_FOLDER}{filepath}.txt", "w") as f:
             if cov_test:
                 f.write(f"Average Coverage: {cov:5.2f}\n") 
