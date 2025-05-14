@@ -276,9 +276,6 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
         test_pipeline = init_pipeline + random.choices(fuzz_pipeline, k = random.randint(5, len(fuzz_pipeline)))
         random.shuffle(test_pipeline)
 
-        if active:
-            query.append(gen.TransactionControl.random(active).sql() + ";") 
-
         pragma = set()
         while len(pragma) < 10: # creates 10 unique pragma settings
             pragma.add(gen.Pragma.random().sql() + ";")
