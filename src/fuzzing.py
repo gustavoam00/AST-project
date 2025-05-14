@@ -353,15 +353,14 @@ def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float
 
     return cov, c, query, tables
 
-def main():
+def main(args=None, remain_args=None):
     parser = argparse.ArgumentParser(description="Fuzzing")
-    parser.add_argument("type", help="Select hybrid type: PIPELINE, RANDOM", nargs="?", default="PIPELINE")
     parser.add_argument("repeat", help="Number of fuzzing loops", nargs="?", default=1, type=int)
     parser.add_argument("sql", help="Number of .sql files", nargs="?", default=1, type=int)
     
-    args = parser.parse_args()
+    other_args = parser.parse_args(remain_args)
 
-    times = args.sql
+    times = other_args.sql
 
     c = (0, 0, 0, 0)
     for _ in range(times):
@@ -370,9 +369,9 @@ def main():
             prob = {k: ( 0.5 if v == 1 else v) for k, v in prob.items()}
             prob = {k: ( 0.9 if v >= 0.95 else v) for k, v in prob.items()}
             pipeline = FUZZING_PIPELINE(prob)
-            cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=args.repeat)
+            cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=other_args.repeat)
         elif args.type == 'RANDOM': 
-            cov, c, query, table = random_query(repeat=int(args.repeat), param_prob=PROB_TABLE)
+            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=PROB_TABLE)
 
     print(f"Final Lines Coverage: {c[0]}")
 

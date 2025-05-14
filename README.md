@@ -20,62 +20,41 @@ This tool performs SQL query fuzzing using both a hybrid pipeline and a probabil
    ```bash
    docker build -t sqlite3-fuzzing .
 
-## Running the Fuzzer and Testing
-
-After the docker image is built:
-
-Run the following commands to generate SQLite queries: 
-```bash
-# Coverage-guided Fuzzing Pipeline
-docker run sqlite3-fuzzing test-db PIPELINE <cycles> <number_of_queries>
-
-# Probability-guided Random Query Generator
-docker run sqlite3-fuzzing test-db RANDOM <cycles> <number_of_queries>
-```
-The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many ```.sql``` files it should generate, which can be used for bug testing. 
-
-After the queries are generated, the files are used to test for bugs.
-
 ---
 
+## Running the Fuzzer and Testing
 
-Use the appropriate command for your operating system:
+After the docker image is built, run and use the appropriate command to generate SQLite queries:
+
 1. **macOS/Linux:**
     ```bash
-    docker run -it -v "$(pwd)":/usr/bin/test-db sqlite3-fuzzing
+    docker run -it -v "$(pwd)":/app sqlite3-fuzzing test-db <type> <cycles> <number_of_queries>
 
 2. **Windows (Command Prompt):**
     ```bash
-    docker run -it -v "%cd%":/usr/bin/test-db sqlite3-fuzzing
+    docker run -it -v "%cd%":/app sqlite3-fuzzing test-db <type> <cycles> <number_of_sql>
 
 3. **Windows (PowerShell):**
     ```bash
-    docker run -it -v "${PWD}":/usr/bin/test-db sqlite3-fuzzing
+    docker run -it -v "${PWD}":/app sqlite3-fuzzing test-db <type> <cycles> <number_of_sql>
+
+- ````<type>```: specified the mode:
+    - ```PIPELINE```: Coverage-guided Fuzzing Pipeline
+    - ```RANDOM```: Probability-guided Random Query Generator
+    - ```TEST```: Bugs testing mode (does not use ```cycle``` or ```number_of_sql```)
+
+- ```<cycles>``` (required for ```PIPELINE``` and ```RANDOM```): Number of iterations for generating queries.
+
+- ```<number_of_sql>``` (required for ```PIPELINE``` and ```RANDOM```): Number of SQL files to generate
 
 ---
 
-1. Inside the docker, run the following commands to generate SQLite queries: 
-```bash
-# Coverage-guided Fuzzing Pipeline
-python main.py FUZZ PIPELINE <cycles> <number_of_queries>
+## Output and Testing
 
-# Probability-guided Random Query Generator
-python main.py FUZZ RANDOM <cycles> <number_of_queries>
-```
-The first number is the number of cycles (how many times should it cycle through the pipeline or random generator). The second number is how many ```.sql``` files it should generate. The queries are saved in folder ```data/test/queries/``` and metrics and other information are saved in ```data/test/stats/``` as ```.txt``` files.
+- Generated queries are saved in ```data/test/queries/``` 
+- Metrics and logs are saved in ```data/test/stats/```
+- Detected bugs are saved in ```data/test/bugs/```
 
-2. Detect bugs by running:
-```bash
-python main.py TEST
-``` 
-Bugs are saved in ```data/test/bugs/```. Make sure to put ```.sql``` queries into the ```data/test/queries``` folder to test for bugs.
+To run bug tests, place the ```.sql``` files you want to test in ```data/test/queries``` folder. The tool will execute them and log them in the ```data/test/bugs/``` folder.
 
-3. To analyze queries and collect metrics, run:
-```bash
-python main.py TEST DATA
-```
-Make sure to run ```main.py FUZZ``` beforehand to generate metrics, or put ```.txt``` of metrics data in ```data/test/stats/``` folder
-
-3.26.0 -> 3.39.4
-https://www3.sqlite.org/changes.html
 

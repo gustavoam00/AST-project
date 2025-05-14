@@ -4,7 +4,7 @@ from .helper.metric import parse_metric, avg_counter, avg_metric
 from pathlib import Path
 from .config import TEST_FOLDER, BUGS_FOLDER, STATS_FOLDER, SQLITE_VERSIONS, DB1, DB2, QUERY_FOLDER
 from tqdm import tqdm
-import os
+import os, argparse
 
 LOCAL = True
 
