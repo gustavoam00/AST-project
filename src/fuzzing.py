@@ -6,6 +6,7 @@ from .helper.helper import coverage_score, save_error
 from .helper.metric import extract_metric
 from tqdm import tqdm
 
+
 #random.seed(SEED)
 
 FUZZING_PIPELINE = lambda x: [
@@ -311,10 +312,11 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
 
     return cov, c, query, tables, corpus
 
-def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float] = None, cov_test: bool = False):
+def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float] = None, cov_test: bool = True):
     '''
     Fast query generator
     '''
+    start = time.time()
     query = []
     tables = []
     cov = 0
@@ -334,8 +336,8 @@ def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float
             c = (lines_c, branch_c, taken_c, calls_c)
             cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
-        print(f"Average Coverage: {cov:5.2f}, Lines Coverage: {c[0]}, Branch Coverage: {c[1]} ")
-
+        # print(f"Average Coverage: {cov:5.2f}, Lines Coverage: {c[0]}, Branch Coverage: {c[1]} ")
+    stop = time.time()
     if save:
         if cov_test:
             filepath = f"random_{lines_c:5.2f}"
@@ -350,6 +352,7 @@ def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float
                 f.write(f"Taken Coverage: {c[2]}\n") 
                 f.write(f"Calls Coverage: {c[3]}\n") 
                 f.write(f"Errors: {err}\n")
+                f.write(f"Runtime: {stop-start}\n")
             f.write(f"Metrics:\n")
             counter = extract_metric(query)
             for k, v in counter.items():
@@ -377,7 +380,7 @@ def main(args=None, remain_args=None):
             pipeline = FUZZING_PIPELINE(prob)
             cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=other_args.repeat)
         elif args.type == 'RANDOM': 
-            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=None, cov_test=False)
+            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=None, cov_test=True)
 
 if __name__ == "__main__":
     main()
