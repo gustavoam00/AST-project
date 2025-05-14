@@ -1,7 +1,7 @@
 
 # SQLite3 Fuzzing Tool
 
-This tool performs SQL query fuzzing using both a hybrid pipeline and a probability-based random generator. It supports bug detection and metrics analysis via Docker and Python scripts.
+This tool performs SQL query fuzzing using both a coverage-guided fuzzing pipeline and a probability-guided random query generator. It supports bug detection and metrics analysis through Docker and Python scripts.
 
 ## Features
 
@@ -57,12 +57,18 @@ After the docker image is built, run and use the appropriate command to generate
 
 ---
 
-## Output and Testing
+## Testing
+
+To test for bugs, place the ```.sql``` files to test in the ```data/test/queries``` folder. Run the tool in ```TEST``` mode. Results will be logged in the ```data/test/bugs/``` folder.
+
+---
+
+## Output
 
 - Generated queries are saved in ```data/test/queries/``` 
 - Metrics and logs are saved in ```data/test/stats/```
 - Detected bugs are saved in ```data/test/bugs/```
 
-To run bug tests, place the ```.sql``` files you want to test in ```data/test/queries``` folder. The tool will execute them and log them in the ```data/test/bugs/``` folder.
+
 
 
