@@ -38,7 +38,7 @@ After the docker image is built, run and use the appropriate command to generate
     ```bash
     docker run -it -v "${PWD}":/app sqlite3-fuzzing test-db <type> <cycles> <number_of_sql>
 
-- ```<type>```: specified the mode:
+- ```<type>```: specifies the mode:
     - ```PIPELINE```: Coverage-guided Fuzzing Pipeline
     - ```RANDOM```: Probability-guided Random Query Generator
     - ```TEST```: Bugs testing mode (does not use ```cycle``` or ```number_of_sql```)
