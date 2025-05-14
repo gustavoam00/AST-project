@@ -1073,7 +1073,7 @@ class Table(SQLNode):
     
     @staticmethod
     def random(name: Optional[str] = None, min_cols: int = 1, max_cols: int = 5, param_prob:Dict[str, float] = None) -> "Table":
-        prob = {}
+        prob = {"pk_p":0, "unq_p":0.005}
         if param_prob is not None:
             prob.update(param_prob)
         
@@ -1083,7 +1083,7 @@ class Table(SQLNode):
         columns = []
         for i in range(num_cols):
             # primary key only for first column and try at least 1 non unique col
-            prob.update({"pk_p":param_prob["pk_p"] if i==0 else 0, "unq_p": 0 if i==0 or i==1 else param_prob["unq_p"]})
+            prob.update({"pk_p":prob["pk_p"] if i==0 else 0, "unq_p": 0 if i==0 or i==1 else prob["unq_p"]})
             col = Column.random(param_prob=prob)
             columns.append(col)
         return Table(name, columns)

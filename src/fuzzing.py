@@ -255,7 +255,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
     total_valid = 0
     total_invalid = 0
 
-    init_pipeline = [Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=False)] 
+    init_pipeline = [Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=True)] 
     test_pipeline = init_pipeline + random.choices(fuzz_pipeline, k = random.randint(5, len(fuzz_pipeline)))
 
     reset() # for local: resets the test.db and coverage information
@@ -372,14 +372,16 @@ def main(args=None, remain_args=None):
     times = other_args.sql
 
     c = (0, 0, 0, 0)
-    for _ in range(times):
-        if args.type == 'PIPELINE': 
+    
+    if args.type == 'PIPELINE': 
+        for _ in range(times):
             prob = {k: (0.05 if 0 <= v and v <= 0.01 else v) for k, v in PROB_TABLE.items()}
             prob = {k: ( 0.5 if v == 1 else v) for k, v in prob.items()}
             prob = {k: ( 0.9 if v >= 0.95 else v) for k, v in prob.items()}
             pipeline = FUZZING_PIPELINE(prob)
             cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=other_args.repeat)
-        elif args.type == 'RANDOM': 
+    elif args.type == 'RANDOM': 
+        for _ in tqdm(range(times), desc="Generating:"):
             cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=PROB_TABLE, cov_test=True)
 
 if __name__ == "__main__":
