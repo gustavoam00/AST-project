@@ -178,9 +178,9 @@ class Fuzzing:
         while tries < self.threshold:
             if tables:
                 table = random.choice(updated_tables)
-                while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
-                       (self.no_virt and isinstance(table, gen.VirtualTable))):
-                    table = random.choice(updated_tables)
+                #while ((self.mod_table and (isinstance(table, gen.View) or (isinstance(table, gen.VirtualTable) and table.vtype == "dbstat"))) or 
+                #       (self.no_virt and isinstance(table, gen.VirtualTable))):
+                #    table = random.choice(updated_tables)
                 valid_query, node, val_active = self.gen_valid_query(table, updated_tables, mut, active)
                 valid_query = valid_query + random.choices([[gen.Optimization.random(table).sql() + ";"], []], weights=[0.05, 0.95], k=1)[0]
             else:
@@ -255,7 +255,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
     total_invalid = 0
 
     init_pipeline = [Fuzzing("Table", gen.Table, prob=PROB_TABLE, gen_table=True, needs_table=False, need_prob=True)] 
-    test_pipeline = init_pipeline + random.choices(fuzz_pipeline, k = random.randint(5, len(fuzz_pipeline)))
+    test_pipeline = init_pipeline + fuzz_pipeline #random.choices(fuzz_pipeline, k = random.randint(5, len(fuzz_pipeline)))
 
     reset() # for local: resets the test.db and coverage information
     for i in range(repeat):
@@ -288,7 +288,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
              queries.append(query[i:i+250])
 
         for q in queries:
-            lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=30)
+            lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=1)
             c = (lines_c, branch_c, taken_c, calls_c)
             cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
