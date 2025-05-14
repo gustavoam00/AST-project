@@ -291,7 +291,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
              queries.append(query[i:i+250])
 
         for q in queries:
-            lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=None)
+            lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=30)
             c = (lines_c, branch_c, taken_c, calls_c)
             cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
