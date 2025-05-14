@@ -173,7 +173,7 @@ class Fuzzing:
         active = active # transation active
 
         if (self.needs_table or self.rem_table) and not updated_tables:
-            return best_cov, best_c, new_query, updated_tables, self.corpus, best_msg, active, runtime
+            return best_cov, best_c, new_query, updated_tables, self.corpus, best_msg, active, 0
 
         while tries < self.threshold:
             if tables:
