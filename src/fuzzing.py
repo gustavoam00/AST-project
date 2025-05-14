@@ -311,41 +311,50 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
 
     return cov, c, query, tables, corpus
 
-def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float] = None):
+def random_query(repeat: int = 3, save: bool = True, param_prob: dict[str, float] = None, cov_test: bool = False):
     '''
     Fast query generator
     '''
     query = []
     tables = []
+    cov = 0
+    c = (0, 0, 0, 0)
+    msg = ""
 
     reset() # for local: resets the test.db and coverage information
-    query, tables = gen.randomQueryGen(param_prob = param_prob, cycle=repeat)
+    query, tables = gen.randomQueryGen(param_prob=param_prob, cycle=repeat)
 
-    queries = []
-    for i in range(0, len(query), 250):
-        queries.append(query[i:i+250])
+    if cov_test:
+        queries = []
+        for i in range(0, len(query), 250):
+            queries.append(query[i:i+250])
 
-    for q in queries:
-        lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=len(q)/10.0)
-        c = (lines_c, branch_c, taken_c, calls_c)
-        cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
+        for q in queries:
+            lines_c, branch_c, taken_c, calls_c, msg = run_coverage(q, timeout=len(q)/10.0)
+            c = (lines_c, branch_c, taken_c, calls_c)
+            cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
-    print(f"Average Coverage: {cov:5.2f}, Lines Coverage: {c[0]}, Branch Coverage: {c[1]} ")
+        print(f"Average Coverage: {cov:5.2f}, Lines Coverage: {c[0]}, Branch Coverage: {c[1]} ")
 
-    if save and cov != 0:
-        err = save_error(msg, f"{ERROR_FOLDER}random_{lines_c:5.2f}.txt")
-        with open(f"{STATS_FOLDER}random_{lines_c:5.2f}.txt", "w") as f:
-            f.write(f"Average Coverage: {cov:5.2f}\n") 
-            f.write(f"Lines Coverage: {c[0]}\n")
-            f.write(f"Branch Coverage: {c[1]}\n") 
-            f.write(f"Taken Coverage: {c[2]}\n") 
-            f.write(f"Calls Coverage: {c[3]}\n") 
-            f.write(f"Errors: {err}\n")
+    if save:
+        if cov_test:
+            filepath = f"random_{lines_c:5.2f}"
+            err = save_error(msg, f"{ERROR_FOLDER}{filepath}.txt")
+        else:
+            filepath = f"random_{random.randint(1, 1000000)}"
+        with open(f"{STATS_FOLDER}{filepath}.txt", "w") as f:
+            if cov_test:
+                f.write(f"Average Coverage: {cov:5.2f}\n") 
+                f.write(f"Lines Coverage: {c[0]}\n")
+                f.write(f"Branch Coverage: {c[1]}\n") 
+                f.write(f"Taken Coverage: {c[2]}\n") 
+                f.write(f"Calls Coverage: {c[3]}\n") 
+                f.write(f"Errors: {err}\n")
             f.write(f"Metrics:\n")
             counter = extract_metric(query)
             for k, v in counter.items():
                 f.write(f"  {k}: {v}\n")
-        with open(f"{QUERY_FOLDER}random_{lines_c:5.2f}.sql", "w") as f:
+        with open(f"{QUERY_FOLDER}{filepath}.sql", "w") as f:
             f.write("\n".join(query))
 
     return cov, c, query, tables
@@ -368,9 +377,7 @@ def main(args=None, remain_args=None):
             pipeline = FUZZING_PIPELINE(prob)
             cov, c, query, tables, corpus = run_pipeline(0, [], [], [], pipeline, repeat=other_args.repeat)
         elif args.type == 'RANDOM': 
-            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=PROB_TABLE)
-
-    print(f"Final Lines Coverage: {c[0]}")
+            cov, c, query, table = random_query(repeat=other_args.repeat, param_prob=None, cov_test=False)
 
 if __name__ == "__main__":
     main()
