@@ -203,8 +203,7 @@ class Fuzzing:
                 best_c = (lines_c, branch_c, taken_c, calls_c)
                 best_msg = msg
                 new_query = combined_query
-                if node not in self.corpus:
-                    self.corpus.append(node)
+                self.corpus.append(node)
                 active = val_active
 
                 if "EXPLAIN" not in valid_query[0] and not mut:
@@ -255,7 +254,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
     total_valid = 0
     total_invalid = 0
 
-    init_pipeline = [Fuzzing("Table", gen.Table, gen_table=True, needs_table=False, need_prob=True)] 
+    init_pipeline = [Fuzzing("Table", gen.Table, prob=PROB_TABLE, gen_table=True, needs_table=False, need_prob=True)] 
     test_pipeline = init_pipeline + random.choices(fuzz_pipeline, k = random.randint(5, len(fuzz_pipeline)))
 
     reset() # for local: resets the test.db and coverage information
@@ -267,7 +266,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
             total_runtime += runtime
 
             # mutation
-            cov, c, query, tables, corpus, msg, active, runtime = stage.generate(cov, c, query, tables, corpus, (i+2)*threshold, desc=desc, active=active, mut=True)
+            cov, c, query, tables, corpus, msg, active, runtime = stage.generate(cov, c, query, tables, corpus, threshold, desc=desc, active=active, mut=True)
             stage.threshold = threshold
             total_runtime += runtime
 
@@ -294,8 +293,9 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
             cov = coverage_score(lines_c, branch_c, taken_c, calls_c)
 
     if save and cov > 0:
-        err = save_error(msg, f"{ERROR_FOLDER}pipeline_{lines_c:5.2f}.txt")
-        with open(f"{STATS_FOLDER}pipeline_{lines_c:5.2f}.txt", "w") as f:
+        filepath = f"pipeline_{lines_c:5.2f}_{random.randint(1, 10000000)}"
+        err = save_error(msg, f"{ERROR_FOLDER}{filepath}.txt")
+        with open(f"{STATS_FOLDER}{filepath}.txt", "w") as f:
             f.write(f"Average Coverage: {cov:5.2f}\n") 
             f.write(f"Lines Coverage: {c[0]}\n")
             f.write(f"Branch Coverage: {c[1]}\n") 
@@ -307,7 +307,7 @@ def run_pipeline(init_cov: int, init_query: list, init_tables: list, init_nodes:
             counter = extract_metric(query)
             for k, v in counter.items():
                 f.write(f"  {k}: {v}\n")
-        with open(f"{QUERY_FOLDER}pipeline_{lines_c:5.2f}.sql", "w") as f:
+        with open(f"{QUERY_FOLDER}{filepath}.sql", "w") as f:
             f.write("\n".join(query))
 
     return cov, c, query, tables, corpus
