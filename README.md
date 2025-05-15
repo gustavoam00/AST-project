@@ -1,7 +1,11 @@
 
-# SQLite3 Fuzzing Tool
+## Overview
 
 This tool performs SQL query fuzzing using both a coverage-guided fuzzing pipeline and a probability-guided random query generator. It supports bug detection and metrics analysis through Docker and Python scripts.
+
+This project was developed as part of the *Automatic Software Testing (AST)* course at ETH Zurich.
+
+---
 
 ## Features
 
@@ -9,6 +13,8 @@ This tool performs SQL query fuzzing using both a coverage-guided fuzzing pipeli
 - Bug discovery and metrics collection
 
 ---
+
+# SQLite3 Fuzzing Tool
 
 ## Setup
 
@@ -24,7 +30,7 @@ This tool performs SQL query fuzzing using both a coverage-guided fuzzing pipeli
 
 ## Running the Fuzzer and Testing
 
-After the docker image is built, run and use the appropriate command to generate SQLite queries:
+After the docker image is built, run and use the appropriate command to generate and test SQLite queries:
 
 1. **macOS/Linux:**
     ```bash
@@ -45,7 +51,6 @@ After the docker image is built, run and use the appropriate command to generate
     docker run -it -v ${PWD}:/app sqlite3-fuzzing test-db <type> <cycles> <number_of_sql>
     ```
 
-
 - ```<type>```: specifies the mode:
     - ```PIPELINE```: Coverage-guided Fuzzing Pipeline
     - ```RANDOM```: Probability-guided Random Query Generator
@@ -53,7 +58,7 @@ After the docker image is built, run and use the appropriate command to generate
 
 - ```<cycles>``` (required for ```PIPELINE``` and ```RANDOM```): Number of iterations for generating queries.
 
-- ```<number_of_sql>``` (required for ```PIPELINE``` and ```RANDOM```): Number of SQL files to generate
+- ```<number_of_sql>``` (required for ```PIPELINE``` and ```RANDOM```): Number of SQL files to generate.
 
 ---
 
