@@ -15,28 +15,51 @@ PROB_TABLE2 = {'comp_nullc': 0.8257248848795652, 'comp_callc': 0.8956358573854, 
 
 PROB_TABLE = {
     # Comparison
-    "comp_nullc": 0.05, "comp_callc": 0.9,
+    "comp_nullc":   0.05, 
+    "comp_callc":   0.9,
 
     # Between
-    "bet_nullc" : 0, "bet_callc" : 0.9,
+    "bet_nullc" :   0.0, 
+    "bet_callc" :   0.9,
 
     # Like
-    "like_nullc" : 0.05, "like_callc" : 0.9,
+    "like_nullc" :  0.05, 
+    "like_callc" :  0.9,
 
     # InList
-    "inli_nullc" : 0.05, "inli_callc" : 0.9,
+    "inli_nullc" :  0.05, 
+    "inli_callc" :  0.9,
 
     # Exists
-    "where_ex_p" : 1, "grp_ex_p" : 0, "ord_ex_p" : 0, "*_ex_p":0, "cols_ex_p":0, "one_ex_p":1, "omit_ex_p":0, "lit_ex_p":1,
+    "where_ex_p" :  1.0, 
+    "grp_ex_p" :    0.0, 
+    "ord_ex_p" :    0.0, 
+    "*_ex_p":       0.0, 
+    "cols_ex_p":    0.0, 
+    "one_ex_p":     1.0, 
+    "omit_ex_p":    0.0, 
+    "lit_ex_p":     1.0,
 
     # NullCheck
-    "nullc" : 0.5, 
+    "nullc" :       0.5, 
 
     # Expression
-    "nocol_p":0.5, "cole_p": 0.8, "lit_p":0.9, "case_p":0.05, "time_p": 0.05,
+    "nocol_p":      0.5, 
+    "cole_p":       0.8, 
+    "lit_p":        0.9, 
+    "case_p":       0.05, 
+    "time_p":       0.005,
 
     # Literal
-    "null_p":0.01, "call_p":0.9, "one_p":0.01, "std_p": 0.75, "form_p":0.3, "cast_p":0.05, "agg2_p": 0.5, "rexp_p":0.01, "alias_p":0.01,
+    "null_p":       0.01, 
+    "call_p":       0.9, 
+    "one_p":        0.01, 
+    "std_p":        0.75, 
+    "form_p":       0.3, 
+    "cast_p":       0.05, 
+    "agg2_p":       0.5, 
+    "rexp_p":       0.01, 
+    "alias_p":      0.01,
 
     # ColumnExpression
     "std_p":        0.4, 
@@ -63,6 +86,7 @@ PROB_TABLE = {
     "nnl_p":        0.01, 
     "cck_p":        0.3, 
     "typeless_p":   0.1,
+    "null_dft_p":   0.001,
 
     # Insert
     "dft_p":        0.2, 
@@ -102,24 +126,24 @@ PROB_TABLE = {
 
     # With
     "rec_p":        0.5, 
-    "one_with_p":   0, 
-    "*_with_p":     1, 
+    "one_with_p":   0.0, 
+    "*_with_p":     1.0, 
     "select_p":     0.95,
 
     # View
     "tmp_p":        0.01, 
-    "one_view_p":   0, 
+    "one_view_p":   0.0, 
     "*_p":          0.5, 
-    "cols_view_p":  1, 
-    "alias_view_p": 0, 
-    "rexp_view_p":  0,
+    "cols_view_p":  1.0, 
+    "alias_view_p": 0.0, 
+    "rexp_view_p":  0.0,
     
     # Index
     "uniq_p":           0.001, 
     #"where_p":          0.4, 
-    "rexp_index_p":     0, 
-    "time_index_p":     0, 
-    "std_index_p":      1,
+    "rexp_index_p":     0.0, 
+    "time_index_p":     0.0, 
+    "std_index_p":      1.0,
 
     # Trigger
     "temp_p":           0.2, 
@@ -127,39 +151,39 @@ PROB_TABLE = {
     "upcol_p":          0.2, 
     "where_trigger_p":  0.0, 
     "feac_p":           0.2, 
-    "dft_trigger_p":    0, 
+    "dft_trigger_p":    0.0, 
     "conf_p":           0.9, 
-    "rexp_trigger_p":   0,
+    "rexp_trigger_p":   0.0,
 
     # Drop
-    "ifex_p":       0,
+    "ifex_p":       0.0,
     "fktbl_p":      0.5,
     
     # Transactions
-    "rollback_p":   0.0,
+    "rollback_p":   0.00001,
     "save_p":       0.25,
     "release_p":    0.5,
 
     # randomQueryGen
-    "table"  :  0.3,
-    "init_ins": 1.0,
-    "alt_ren":  0.2, 
-    "alt_add":  0.2,
-    "alt_col":  0.2,
-    "select1":  0.4,
-    "select2":  0.2,
-    "with":     0.1,
-    "view":     0.1,
-    "index":    0.1,
-    "trigger":  0.1,
-    "insert":   0.2,
-    "update":   0.2,
-    "replace":  0.2,
-    "delete":   0.2,
-    "pragma":   0.01,
-    "control":  0.01,
-    "optimize": 0.01,
-    "drop_tbl": 0.05,
+    "table"  :     0.3,
+    "init_ins":    0.995,
+    "alt_ren":     0.2, 
+    "alt_add":     0.2,
+    "alt_col":     0.2,
+    "select1":     0.4,
+    "select2":     0.2,
+    "with":        0.1,
+    "view":        0.1,
+    "index":       0.1,
+    "trigger":     0.1,
+    "insert":      0.2,
+    "update":      0.2,
+    "replace":     0.2,
+    "delete":      0.2,
+    "pragma":      0.01,
+    "control":     0.01,
+    "optimize":    0.01,
+    "drop_tbl":    0.05,
 
 }
 
