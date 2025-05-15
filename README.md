@@ -1,5 +1,5 @@
 
-## Overview
+# Overview
 
 This tool performs SQL query fuzzing using both a coverage-guided fuzzing pipeline and a probability-guided random query generator. It supports bug detection and metrics analysis through Docker and Python scripts.
 
@@ -30,7 +30,7 @@ This project was developed as part of the *Automatic Software Testing (AST)* cou
 
 ## Running the Fuzzer and Testing
 
-After the docker image is built, run and use the appropriate command to generate and test SQLite queries:
+After the docker image is built, run and use the appropriate command to generate and test SQLite queries. Ensure you're in the project root folder to persist output correctly:
 
 1. **macOS/Linux:**
     ```bash
