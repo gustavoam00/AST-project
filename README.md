@@ -60,6 +60,8 @@ After the docker image is built, run and use the appropriate command to generate
 
 - ```<number_of_sql>``` (required for ```PIPELINE``` and ```RANDOM```): Number of SQL files to generate.
 
+*Note:* Make sure you're running the Docker command from the project root folder, the same folder that contains the Dockerfile. This ensures that Docker correctly mounts the volume and that output files are saved persistently inside the ```/app``` folder in the container.
+
 ---
 
 ## Testing
