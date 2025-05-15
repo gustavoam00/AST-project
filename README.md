@@ -59,7 +59,14 @@ After the docker image is built, run and use the appropriate command to generate
 
 ## Testing
 
-To test for bugs, place the ```.sql``` files to test in the ```data/test/queries``` folder. Run the tool in ```TEST``` mode. Results will be logged in the ```data/test/bugs/``` folder.
+To test for bugs, place the ```.sql``` files to test in the ```data/test/queries``` folder. Run the tool in ```TEST``` mode. Results will be logged in the ```data/test/bugs/``` folder. 
+
+The test returns three ```.sql``` files:
+- A cleaned SQL file that removes different non-bug related outputs such as time, date or ```EXPLAIN``` queries
+- The SQL file tested on SQLite version 3.26.0 with each of its output commented in
+- The SQL file tested on SQLite version 3.39.4 with each of its output commented in
+
+Additionally, a log of the query and the potential bug output in both versions is returned as a ```.txt``` file.
 
 ---
 
