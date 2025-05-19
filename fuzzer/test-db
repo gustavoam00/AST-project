@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import sys
+import os
+
+# Add the /app directory to the Python path
+sys.path.append('/app')
+
+from main import main
+
+if __name__ == "__main__":
+    main()

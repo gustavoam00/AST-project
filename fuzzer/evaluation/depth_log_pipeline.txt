@@ -1,0 +1,13 @@
+SQL Expression Depth Evaluation
+
+----- SyntaxTree-Based Depth -----
+Processed 11664 queries
+Average: 4.56
+Minimum: 1
+Maximum: 33
+
+----- Parentheses-Based Depth -----
+Processed 13128 queries
+Average: 2.52
+Minimum: 1
+Maximum: 13
