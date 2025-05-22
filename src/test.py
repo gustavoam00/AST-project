@@ -35,9 +35,14 @@ def run_query(cmd):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True
+            timeout=1
         )
-        return result.stdout.strip(), ""
+        if result.returncode < 0:
+            if result.returncode == -11:
+                return "", "Segmentation fault (core dumped)"
+            return "", f"Terminated by signal {result.returncode}"
+
+        return result.stdout.strip(), result.stderr.strip()
     except subprocess.CalledProcessError as e:
         return "", e.stderr.strip()
 
@@ -67,8 +72,8 @@ def run_test(queries, name):
         out1, err1 = run_query(cmd1)
         out2, err2 = run_query(cmd2)
 
-        print(SQLITE_VERSIONS[0], out1, err1)
-        print(SQLITE_VERSIONS[1], out2, err2)
+        #print(SQLITE_VERSIONS[0], out1, err1)
+        #print(SQLITE_VERSIONS[1], out2, err2)
 
         if err1:
             r1 += 1
@@ -119,7 +124,7 @@ def run_test(queries, name):
         for f in [file1, file2]:
             if os.path.exists(f):
                 os.remove(f)
-    else:
+    else:       
         print(f"Bug found in {name}.sql")
         file = os.path.join(BUGS_FOLDER, f"{name}_clean.sql")
         with open(file, "w") as f:
@@ -140,12 +145,20 @@ def main(args=None):
     #if args.type == "BUGS":
     reset()
     # SELECT folder inside queries to test
-    sql_folder = Path(QUERY_TEST_FOLDER + "query1/")
+    sql_folder = Path(QUERY_TEST_FOLDER + "query20/")
     sql_files = list(sql_folder.glob('*.sql'))  
     for i, sql_file in enumerate(tqdm(sql_files, desc="Testing for bugs")):
         with sql_file.open('r', encoding='utf-8') as f:
-            query = sql_cleaner(f.read())
-            run_test(query, sql_file.stem)
+            queries  = f.read().rstrip()
+            raw_queries = queries.split(';')
+
+            queries = []
+            for query in raw_queries:
+                cleaned = ' '.join(query.strip().split())
+                if cleaned: 
+                    queries.append(cleaned + ';')  
+ 
+            run_test(queries, sql_file.stem)
 
 if __name__ == "__main__":
     main()
