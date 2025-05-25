@@ -1,6 +1,7 @@
 import re
 import sys
 import difflib
+from tqdm import tqdm
 from src.reduce import check, load_query_and_oracle, run_query2
 from collections import Counter
 
@@ -66,11 +67,9 @@ def simplify_sql(query):
 
         'lower', 'upper', 'lag', 'lead', 'abs', 'sum', 'avg', 'min', 'max',
         'count', 'length', 'trim', 'substr', 'round', 'cast', 'coalesce',
-        'nullif', 'ifnull', 'date', 'datetime', 'quote',
+        'nullif', 'ifnull', 'date', 'datetime', 'quote', 'zeroblob',
     ]
-    tokens = query.lower().split()
-    keyword_freq = Counter(tok for tok in tokens if tok in keywords_to_wrap)
-    print(keyword_freq)
+    
     while True:
         changed = False
         for match in paren_expr.finditer(query):
@@ -112,7 +111,6 @@ def strip_column_types(sql_text):
         header = match.group(1)
         body = match.group(2)
 
-        # Split lines respecting parentheses
         columns = []
         current = ''
         depth = 0
@@ -129,7 +127,6 @@ def strip_column_types(sql_text):
         if current:
             columns.append(current.strip())
 
-        # Strict SQL type keywords to remove
         TYPE_PATTERN = re.compile(r"^(INTEGER|TEXT|REAL|BOOLEAN|BLOB|NUMERIC)$", re.IGNORECASE)
 
         stripped_columns = []
@@ -138,7 +135,6 @@ def strip_column_types(sql_text):
             if not parts:
                 continue
 
-            # Leave constraints and foreign keys alone
             if re.match(r'(?i)(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT)', parts[0]):
                 stripped_columns.append(col)
                 continue
@@ -152,7 +148,6 @@ def strip_column_types(sql_text):
         formatted = ", ".join(stripped_columns)
         return f"{header}( {formatted} ) ;"
 
-    # Replace each CREATE TABLE block
     pattern = re.compile(
         r"(CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+[^\(]+?)\s*\((.*?)\)\s*;",
         re.IGNORECASE | re.DOTALL
@@ -179,9 +174,10 @@ def remove_nested_parentheses(s: str) -> str:
     return s
 
 def space_it_out(query):
-    query = query.replace('(', '( ').replace(')', ' )')
+    query = query.replace('(', ' ( ').replace(')', ' ) ')
     query = query.replace(';', ' ; ').replace(',', ' , ')
     query = re.sub(r'\s+', ' ', query)
+    query = query.strip()
     return query
 
 def cleaning_pipeline(query):
@@ -194,6 +190,62 @@ def cleaning_pipeline(query):
     # new_ query = remove unecessary parenthesis
     new_query = space_it_out(new_query)
     return new_query
+
+
+def delta_debug(full_query, oracle):
+    queries = [q.strip() for q in full_query.split(';') if q.strip()]
+    minimized_queries = []
+
+    for i, q in tqdm(list(enumerate(queries)), total=len(queries)):
+        tokens = q.split()
+        reduced_tokens = ddmin(
+            tokens,
+            lambda new_tokens: check_query_tokens(full_query, new_tokens, i, queries, oracle)
+        )
+        if reduced_tokens:
+            minimized_queries.append(' '.join(reduced_tokens))
+
+    return ' ; '.join(minimized_queries) + ' ;'
+
+def check_query_tokens(original, new_tokens, idx, queries, oracle):
+    rebuilt = []
+    for j, q in enumerate(queries):
+        if j == idx:
+            rebuilt.append(' '.join(new_tokens))
+        else:
+            rebuilt.append(q.strip())
+    new_query = ' ; '.join(rebuilt)
+    return check(original, new_query, oracle)
+
+def ddmin(tokens, test):
+    n = 2
+    length = len(tokens)
+
+    while length >= 1:
+        start = 0
+        subset_found = False
+        chunk_size = max(1, len(tokens) // n)
+
+        while start < len(tokens):
+            end = min(start + chunk_size, len(tokens))
+            reduced = tokens[:start] + tokens[end:]
+
+            if test(reduced):
+                tokens = reduced
+                length = len(tokens)
+                n = max(n - 1, 2)
+                subset_found = True
+                break
+            start = end
+
+        if not subset_found:
+            if n >= len(tokens):
+                break
+            n = min(n * 2, len(tokens))
+
+    return tokens
+
+    
 
 def main():
     arg = int(sys.argv[1])
@@ -214,6 +266,9 @@ def main():
     else:
         query, oracle = load_query_and_oracle(arg)
         new_query = cleaning_pipeline(query)
+        print(new_query)
+        new_query = delta_debug(new_query, oracle)
+        print('+++++')
         print(new_query)
     
     # print('====')
