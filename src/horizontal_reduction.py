@@ -1,19 +1,40 @@
 import re
 import sys
-from src.reduce import check_query_similarity, load_query_and_oracle, run_query2
+import difflib
+from src.reduce import check, load_query_and_oracle, run_query2
+from collections import Counter
 
+def show_sql_diff(sql1, sql2):
+    sql1_lines = [line.strip() for line in sql1.strip().split(';') if line.strip()]
+    sql2_lines = [line.strip() for line in sql2.strip().split(';') if line.strip()]
+
+    diff = list(difflib.unified_diff(
+        sql1_lines, 
+        sql2_lines,
+        fromfile='Original',
+        tofile='Modified',
+        lineterm=''
+    ))
+
+    if not diff:
+        print("No differences found.")
+    else:
+        print("\n".join(diff))
+            
 def simplify_sql(query):
     def try_eval_math(expr):
         try:
+            expr = expr.replace(' ', '')
             expr = expr.replace('++', '+').replace('--', '+').replace('+-', '-').replace('-+', '-')
-            return str(eval(expr, {"__builtins__": None}, {}))
+            expr = re.sub(r'(-?\d+)/(-?\d+)', r'int(\1/\2)', expr)
+            result = eval(expr, {"__builtins__": None, "int": int}, {})
+            return str(result)
         except:
             return None
-        
+
     def try_eval_bool(expr):
-        expr = expr.strip()
-        lowered = expr.lower()
-        normalized = " ".join(lowered.split())
+        expr = expr.strip().lower()
+        normalized = " ".join(expr.split())
 
         if normalized == "not true":
             return "false"
@@ -24,25 +45,32 @@ def simplify_sql(query):
             r'(true|false|[-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?)[ ]*'
             r'(=|<>|!=|<=|>=|<|>)[ ]*'
             r'(true|false|[-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?)',
-            lowered
+            expr
         )
         if match:
             lhs, op, rhs = match.groups()
             lhs = lhs.replace('true', 'True').replace('false', 'False')
             rhs = rhs.replace('true', 'True').replace('false', 'False')
-            py_op = op.replace('=', '==').replace('<>', '!=')
+            py_op = op.replace('=', '==').replace('<>', '!=').replace('!==', '!=')
 
             try:
                 result = eval(f"{lhs} {py_op} {rhs}", {"__builtins__": None}, {})
                 return 'true' if result else 'false'
             except:
                 return None
-
         return None
-    
-    #
-    paren_expr = re.compile(r'\(([^()]+)\)')
 
+    paren_expr = re.compile(r'\(([^()]+)\)')
+    keywords_to_wrap = [
+        'values', 'in', 'select', 'insert', 'into', 'update', 'set', 'where',
+
+        'lower', 'upper', 'lag', 'lead', 'abs', 'sum', 'avg', 'min', 'max',
+        'count', 'length', 'trim', 'substr', 'round', 'cast', 'coalesce',
+        'nullif', 'ifnull', 'date', 'datetime', 'quote',
+    ]
+    tokens = query.lower().split()
+    keyword_freq = Counter(tok for tok in tokens if tok in keywords_to_wrap)
+    print(keyword_freq)
     while True:
         changed = False
         for match in paren_expr.finditer(query):
@@ -54,6 +82,14 @@ def simplify_sql(query):
                 result = try_eval_bool(inner)
 
             if result is not None:
+                context_before = query[:match.start()].rstrip().lower()
+                prev_word = context_before.split()[-1] if context_before.split() else ""
+
+                if prev_word in keywords_to_wrap:
+                    result = f'__open__ {result} __close__'
+                elif prev_word == ',' and context_before.split()[-2] == '__close__':
+                    result = f'__open__ {result} __close__'
+                    
                 query = query[:match.start()] + result + query[match.end():]
                 changed = True
                 break
@@ -61,112 +97,146 @@ def simplify_sql(query):
         if not changed:
             break
 
-    return query
-
-
-def strip_column_types(query):
-    match = re.search(r"^(CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+\w+\s*)\((.*)\)", query, re.DOTALL)
-    if not match:
-        return query  # Not a valid CREATE TABLE
-
-    header = match.group(1)
-    body = match.group(2)
-    print(body)
-    columns = []
-    current = ''
-    depth = 0
-    for c in body:
-        if c == ',' and depth == 0:
-            columns.append(current.strip())
-            current = ''
-        else:
-            current += c
-            if c == '(':
-                depth += 1
-            elif c == ')':
-                depth -= 1
-    if current:
-        columns.append(current.strip())
-
-    TYPE_PATTERN = re.compile(r"^(INTEGER|TEXT|REAL|BOOLEAN|BLOB)$")
-
-    stripped_columns = []
-
-    for col in columns:
-        parts = col.strip().split()
-        if not parts:
-            continue
-
-        col_name = parts[0]
-        rest = parts[1:]
-
-        constraints = []
-
-        for token in rest:
-            if TYPE_PATTERN.match(token):
-                continue
-            else:
-                constraints.append(token)
-
-        constraint_str = ' '.join(constraints).strip()
-        stripped_line = f"{col_name} {constraint_str}".strip()
-        stripped_columns.append(stripped_line)
-
-    return f"{header}(" + ", ".join(stripped_columns) + ");"
-
-def strip_select(query):
-    def remove_clause(query, clause_keyword):
-        clause_boundaries = [
-            r"\bWHERE\b",
-            r"\bGROUP\s+BY\b",
-            r"\bHAVING\b",
-            r"\bORDER\s+BY\b",
-            r"\bPARTITION\s+BY\b"
-            r"\bLIMIT\b",
-            r"\bOFFSET\b",
-            r"\bFETCH\b",
-            r"\bFOR\b",
-            r"\bUNION\b",
-            r"\bINTERSECT\b",
-            r"\bEXCEPT\b",
-            r"\)",
-            r";",
-        ]
-        boundary_pattern = '|'.join(clause_boundaries)
-        pattern = rf"(?i)\b{clause_keyword}\b\s+.*?(?=({boundary_pattern})|$)"
-        return re.sub(pattern, "", query, flags=re.DOTALL)
+    query = query.replace('__open__', '(').replace('__close__', ')')
     
-    if not re.match(r"(?i)^\s*SELECT\b", query.strip()):
-        return query
-
-    query = remove_clause(query, "ORDER BY")
-    query = remove_clause(query, "GROUP BY")
-    # query = remove_clause(query, "PARTITION BY")
-    # query = remove_clause(query, "HAVING")
-    query = remove_clause(query, "LIMIT")
-    query = remove_clause(query, "OFFSET")
-
-    query = re.sub(r"\s+", " ", query)
-    query = re.sub(r"\s*;\s*", ";", query).strip()
-
+    query = query.replace('(', ' ( ').replace(')', ' ) ').replace(',', ' , ')
+    query = re.sub(r'\+\s+\+', '+', query)
+    query = re.sub(r'-\s+-', '+', query)
+    query = re.sub(r'\+\s+-', '-', query)
+    query = re.sub(r'-\s+\+', '-', query)
     return query
 
 
+def strip_column_types(sql_text):
+    def process_create_table_block(match):
+        header = match.group(1)
+        body = match.group(2)
 
+        # Split lines respecting parentheses
+        columns = []
+        current = ''
+        depth = 0
+        for c in body:
+            if c == ',' and depth == 0:
+                columns.append(current.strip())
+                current = ''
+            else:
+                current += c
+                if c == '(':
+                    depth += 1
+                elif c == ')':
+                    depth -= 1
+        if current:
+            columns.append(current.strip())
+
+        # Strict SQL type keywords to remove
+        TYPE_PATTERN = re.compile(r"^(INTEGER|TEXT|REAL|BOOLEAN|BLOB|NUMERIC)$", re.IGNORECASE)
+
+        stripped_columns = []
+        for col in columns:
+            parts = col.strip().split()
+            if not parts:
+                continue
+
+            # Leave constraints and foreign keys alone
+            if re.match(r'(?i)(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT)', parts[0]):
+                stripped_columns.append(col)
+                continue
+
+            col_name = parts[0]
+            rest = parts[1:]
+            new_parts = [p for p in rest if not TYPE_PATTERN.fullmatch(p)]
+            stripped_line = f"{col_name} {' '.join(new_parts)}".strip()
+            stripped_columns.append(stripped_line)
+
+        formatted = ", ".join(stripped_columns)
+        return f"{header}( {formatted} ) ;"
+
+    # Replace each CREATE TABLE block
+    pattern = re.compile(
+        r"(CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+[^\(]+?)\s*\((.*?)\)\s*;",
+        re.IGNORECASE | re.DOTALL
+    )
+
+    return pattern.sub(process_create_table_block, sql_text)
+
+def strip_select(query): #group and order by maybe possible, more difficult
+    query = re.sub(r'LIMIT\s+\d+', '', query, flags=re.IGNORECASE)
+    query = re.sub(r'OFFSET\s+\d+', '', query, flags=re.IGNORECASE)
+    query = re.sub(r'\bDISTINCT\b', '', query, flags=re.IGNORECASE)
+    return query
+
+def clean_semicolons(sql: str) -> str:
+    sql = re.sub(r'(;\s*){2,}', '; ', sql)
+    return sql.strip()
+
+def remove_nested_parentheses(s: str) -> str:
+    pattern = re.compile(r'\(\s*\(([^()]*?)\)\s*\)')
+    prev = None
+    while prev != s:
+        prev = s
+        s = pattern.sub(r'(\1)', s)
+    return s
+
+def space_it_out(query):
+    query = query.replace('(', '( ').replace(')', ' )')
+    query = query.replace(';', ' ; ').replace(',', ' , ')
+    query = re.sub(r'\s+', ' ', query)
+    return query
+
+def cleaning_pipeline(query):
+    new_query = space_it_out(query)
+    new_query = clean_semicolons(new_query)
+    new_query = simplify_sql(new_query)
+    new_query = remove_nested_parentheses(new_query)
+    new_query = strip_column_types(new_query)
+    new_query = strip_select(new_query)
+    # new_ query = remove unecessary parenthesis
+    new_query = space_it_out(new_query)
+    return new_query
 
 def main():
-    query, type = load_query_and_oracle(sys.argv[1])
-    print(type)
-    print('====')
-    out0, err0 = run_query2(query, 0)
-    out1, err1 = run_query2(query, 1)
-    print(out0)
-    print('----')
-    print(err0)
-    print('====')
-    print(out1)
-    print('----')
-    print(err1)
+    arg = int(sys.argv[1])
+    
+    if arg == 0:
+        for i in range(1, 21):
+            if i == 17: 
+                continue
+            query, oracle = load_query_and_oracle(i)
+            new_query = cleaning_pipeline(query)
+            # print(new_query)
+            check_ = check(query, new_query, oracle)
+            print(str(i) + oracle + ':'+ str(check_))
+            if not check_:
+                print(i)
+                show_sql_diff(space_it_out(query), new_query)
+                break
+    else:
+        query, oracle = load_query_and_oracle(arg)
+        new_query = cleaning_pipeline(query)
+        print(new_query)
+    
+    # print('====')
+    # out0, err0 = run_query2(query, 0)
+    # out1, err1 = run_query2(query, 1)
+    # print(out0)
+    # print('----')
+    # print(err0)
+    # print('====')
+    # print(out1)
+    # print('----')
+    # print(err1)
+    # print('=======')
+    # out0, err0 = run_query2(new_query, 0)
+    # out1, err1 = run_query2(new_query, 1)
+    # print(out0)
+    # print('----')
+    # print(err0)
+    # print('====')
+    # print(out1)
+    # print('----')
+    # print(err1)
+    return
     
 if __name__ == "__main__":
     main()

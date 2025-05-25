@@ -74,8 +74,12 @@ def run_query2(query, version):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True
         )
+        if result.returncode < 0:
+            if result.returncode == -11:
+                return "", "Segmentation fault (core dumped)"
+            return "", f"Terminated by signal {result.returncode}"
+
         return result.stdout.strip(), result.stderr.strip()
     except subprocess.CalledProcessError as e:
         return "", e.stderr.strip()
@@ -173,44 +177,62 @@ def load_query_and_oracle(n):
     oracle_file = os.path.join(base_path, "oracle.txt")
 
     with open(query_file, "r") as qf:
-        query = qf.read().strip()
+        query = qf.read().strip().replace('\n', ' ')
     with open(oracle_file, "r") as of:
         oracle = of.read().strip()
         
     return query, oracle
 
-def check_query_similarity(original_query, candidate_query, crash):
-    def run_and_capture(query):
-        cmd1 = f"/usr/bin/{SQLITE_VERSIONS[0]} {DB1} \"{query}\""
-        cmd2 = f"/usr/bin/{SQLITE_VERSIONS[1]} {DB2} \"{query}\""
+def check(original_query, candidate_query, oracle):
+    def run_and_capture(query1, query2, version):
+        cmd1 = f"/usr/bin/{SQLITE_VERSIONS[version]} {DB1} \"{query1}\""
+        cmd2 = f"/usr/bin/{SQLITE_VERSIONS[version]} {DB2} \"{query2}\""
         out1, err1 = run_query(cmd1)
         out2, err2 = run_query(cmd2)
         return (out1, err1), (out2, err2)
 
-    # Run original and candidate queries
-    reset_db()
-    (orig_out1, orig_err1), (orig_out2, orig_err2) = run_and_capture(original_query)
-    reset_db()
-    (cand_out1, cand_err1), (cand_out2, cand_err2) = run_and_capture(candidate_query)
-    reset_db()
-    
-    # print(str(1)+orig_out1)
-    # print(str(2)+orig_err1)
-    # print(str(3)+orig_out2)
-    # print(str(4)+orig_err2)
-
-    if crash:
-        if (orig_err1 and cand_err1) or (orig_err2 and cand_err2):
+    if oracle == "DIFF":
+        reset_db()
+        (orig_out1, orig_err1), (cand_out1, cand_err1) = run_and_capture(original_query, candidate_query, 0)
+        reset_db()
+        (orig_out2, orig_err2), (cand_out2, cand_err2) = run_and_capture(original_query, candidate_query, 1)
+        reset_db()
+        # print(str(1)+orig_out1)
+        # print(str(2)+orig_err1)
+        # print(str(3)+orig_out2)
+        # print(str(4)+orig_err2)
+        # print(str(5)+cand_out1)
+        # print(str(6)+cand_err1)
+        # print(str(7)+cand_out2)
+        # print(str(8)+cand_err2)
+        if (orig_err1 == cand_err1 and orig_err2 == cand_err2)\
+        and (orig_out1 != orig_out2 and cand_out1 != cand_out2):
+            return True #Errors are the same with both queries, outputs are different across versions
+        if (orig_err1 == cand_err1 and orig_err2 == cand_err2)\
+        and (orig_err1 == "" or orig_err2 == ""):
+            return True #Errors are the same wiht both queries, only one version has error
+        
+        return False
+    elif oracle == "CRASH(3.26.0)":
+        reset_db()
+        (_, orig_err1), (_, cand_err1) = run_and_capture(original_query, candidate_query, 0)
+        reset_db()
+        if (orig_err1 == cand_err1):
+            return True
+        
+        return False
+    elif oracle == "CRASH(3.39.4)":
+        reset_db()
+        (_, orig_err2), (_, cand_err2) = run_and_capture(original_query, candidate_query, 1)
+        reset_db()
+        if (orig_err2 == cand_err2):
             return True
         
         return False
     
     else:
-        if (orig_out1 != orig_out2 and cand_out1 != cand_out2)\
-        or (orig_err1 != orig_err2 and cand_err1 != cand_err2):
-            return True
+        raise Exception(f"wrong oracle: {oracle}")
         
-        return False
 
 def main(args=None):
     #parser = argparse.ArgumentParser(description="Testing")
