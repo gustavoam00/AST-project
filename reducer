@@ -1,11 +1,99 @@
 #!/usr/bin/env python3
-import sys
+import argparse
+import subprocess
 import os
+from src.vertical_reduction import trace_context, delta_debug
+from src.config import INFO_OUTPUT, TEMP_OUTPUT
 
-# Add the /app directory to the Python path
-sys.path.append('/app')
+def run_test(test: str, query_path: str, oracle: str, queries: list[str] = []):
+    if queries:
+        with open(query_path, "w") as f:
+            for query in queries:
+                f.write(query + "\n")
+    try:
+        result = subprocess.run(
+            [test, query_path, oracle],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        print("Test script timed out.")
+        return False
 
-from main import main
+def main():
+    parser = argparse.ArgumentParser(description="SQL Query Reducer")
+    parser.add_argument("--query", required=True, help="Path to SQL query file")
+    parser.add_argument("--test", required=True, help="Shell script to test for the bug")
+    args = parser.parse_args()
+
+    original_path = os.path.join(args.query, "original_test.sql")
+    reduced_path = os.path.join(args.query, "reduced_test.sql")
+    info_path = os.path.join(INFO_OUTPUT, "info.txt")
+    with open(info_path, "w") as f:
+        f.write("") 
+    with open(os.path.join(args.query, "oracle.txt"), "r") as f:
+        oracle = str(f.read().strip())
+
+    # run test first to get initial information
+    run_test(args.test, original_path, oracle)
+
+    # read query in
+    with open(original_path, 'r') as f:
+        query  = f.read().rstrip()
+        raw_queries = query.split(';')
+
+        queries: list[str] = []
+        for query in raw_queries:
+            cleaned = ' '.join(query.strip().split())
+            if cleaned: 
+                queries.append(cleaned + ';') 
+
+    print(len(queries))
+
+    if os.path.exists(info_path):
+        with open(info_path, "r") as f:
+            index = int(f.readline().strip()) 
+            msg0 = f.readline().strip()
+            msg1 = f.readline().strip()
+            msg = (msg0, msg1)
+            errlist = f.readlines()
+
+    # reduction through context tracing
+    setup_queries, context_queries, bug_query = trace_context(queries, index, errlist, msg) # type: ignore
+
+    with open(reduced_path, "w") as f:
+        f.writelines(line + "\n" for line in setup_queries)
+        f.writelines(line + "\n" for line in context_queries)
+        f.writelines(line + "\n" for line in bug_query)
+
+    if run_test(args.test, reduced_path, oracle):
+        print(len(setup_queries + context_queries + bug_query))
+
+    temp_path = os.path.join(TEMP_OUTPUT, "delta.sql")
+    if len(queries) > 50:
+        delta_queries = setup_queries + delta_debug(setup_queries, context_queries, bug_query, lambda q: run_test(args.test, temp_path, oracle, q), n=2) + bug_query
+    else:
+        delta_queries = delta_debug([], setup_queries + context_queries + bug_query, [], lambda q: run_test(args.test, temp_path, oracle, q), n=2)
+    
+    with open(reduced_path, "w") as f:
+        f.writelines(line + "\n" for line in delta_queries)
+
+    if run_test(args.test, reduced_path, oracle):
+        print(len(delta_queries))
+
+    if len(queries) > 50:
+        delta_queries = delta_debug([], delta_queries, [], lambda q: run_test(args.test, temp_path, oracle, q), n=2)
+    
+        with open(reduced_path, "w") as f:
+            f.writelines(line + "\n" for line in delta_queries)
+
+        if run_test(args.test, reduced_path, oracle):
+            print(len(delta_queries))
+    
+    # TODO: save the reduces sql as reduced_test.sql in the same folder as above
+    # TODO: delta debug calls to test-bug.sh (save as delta_test.sql)
 
 if __name__ == "__main__":
     main()

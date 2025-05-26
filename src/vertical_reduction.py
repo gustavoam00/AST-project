@@ -2,8 +2,6 @@ import re
 from collections import defaultdict
 from typing import Callable
 
-import re
-
 def group_by_table(queries):
     table_groups = defaultdict(list)
     for q in queries:
@@ -33,7 +31,6 @@ def delta_debug(setup_queries: list[str], queries: list[str], error_query: list[
             end = (i + 1) * chunk_size if i < n - 1 else length
             delta_i = queries[start:end]
             nabla_i = queries[:start] + queries[end:]
-
             subsets.append(delta_i)
             complements.append(nabla_i)
 
@@ -55,7 +52,6 @@ def delta_debug(setup_queries: list[str], queries: list[str], error_query: list[
 def extract_tables(query: str) -> tuple[list[str], list[str]]:
     tables: list[str] = []
     
-    #query_clean = re.sub(r'\s+', ' ', query.strip()).upper()
     query_clean = re.sub(r'\bFROM\s+\(\s*([A-Z_][A-Z0-9_]*)\s*\)', r'FROM \1', query.strip())
     
     # extract tables
@@ -101,7 +97,7 @@ def trace_context(queries: list[str], index: int, errlist: list[str], msg: tuple
     
     for i in range(index-1, -1, -1):
         query = queries[i]
-        if query in errlist:
+        if query + "\n" in errlist:
             continue
 
         tables_in_query, q0 = extract_tables(query)
@@ -113,7 +109,7 @@ def trace_context(queries: list[str], index: int, errlist: list[str], msg: tuple
         if not set(dependency_tables).isdisjoint(tables_in_query):
             # segmentation fault is probably because of semantic/syntax/parsing errors therefore 
             # updating, adding, deleting, etc. should not influence the bug causing query
-            if msg[0] == "Segmentation fault (core dumped)" or msg[1] == "Segmentation fault (core dumped)":
+            if msg[0] == "Error: segmentation fault (core dumped)" or msg[1] == "Error: segmentation fault (core dumped)":
                 if query.startswith("CREATE TABLE") or query.startswith("ALTER TABLE") or query.startswith("CREATE VIEW"):
                     if query.startswith("CREATE TABLE") or query.startswith("CREATE VIEW"):
                         tables.insert(0, query)
