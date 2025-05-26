@@ -48,3 +48,30 @@ def sql_cleaner(queries: str) -> list[str]:
             and "julianday" not in stmt
             and "RANDOM" not in stmt
     ]
+
+def get_queries(path: str) -> list[str]:
+    with open(path, 'r') as f:
+        query  = f.read().rstrip()
+        raw_queries = query.split(';')
+
+        queries: list[str] = []
+        for query in raw_queries:
+            cleaned = ' '.join(query.strip().split())
+            if cleaned: 
+                queries.append(cleaned + ';') 
+    
+    return queries
+
+def read_info(path: str) -> tuple[int, list[str], tuple[str, str]]:
+    with open(path, "r") as f:
+        index = int(f.readline().strip()) 
+        msg0 = f.readline().strip()
+        msg1 = f.readline().strip()
+        msg = (msg0, msg1)
+        errlist = f.readlines()
+    
+    return index, errlist, msg
+
+def write_queries(path: str, queries: list[str]):
+     with open(path, "w") as f:
+        f.writelines(line + "\n" for line in queries)

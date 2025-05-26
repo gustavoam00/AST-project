@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-import argparse
-import subprocess
-import os
+import argparse, subprocess, os
 from src.vertical_reduction import trace_context, delta_debug
 from src.config import INFO_OUTPUT, TEMP_OUTPUT
+from src.helper import get_queries, read_info, write_queries
 
 def run_test(test: str, query_path: str, oracle: str, queries: list[str] = []):
     if queries:
@@ -29,6 +28,7 @@ def main():
     parser.add_argument("--test", required=True, help="Shell script to test for the bug")
     args = parser.parse_args()
 
+    # path setup
     original_path = os.path.join(args.query, "original_test.sql")
     reduced_path = os.path.join(args.query, "reduced_test.sql")
     info_path = os.path.join(INFO_OUTPUT, "info.txt")
@@ -38,64 +38,34 @@ def main():
     with open(os.path.join(args.query, "oracle.txt"), "r") as f:
         oracle = str(f.read().strip())
 
-    # run test first to get initial information
+    # reduction
     run_test(args.test, original_path, oracle)
-
-    # read query in
-    with open(original_path, 'r') as f:
-        query  = f.read().rstrip()
-        raw_queries = query.split(';')
-
-        queries: list[str] = []
-        for query in raw_queries:
-            cleaned = ' '.join(query.strip().split())
-            if cleaned: 
-                queries.append(cleaned + ';') 
-
+    queries = get_queries(original_path)
     print(len(queries))
 
-    if os.path.exists(info_path):
-        with open(info_path, "r") as f:
-            index = int(f.readline().strip()) 
-            msg0 = f.readline().strip()
-            msg1 = f.readline().strip()
-            msg = (msg0, msg1)
-            errlist = f.readlines()
-
-    # reduction through context tracing
+    # trace context reduction
+    index, errlist, msg = read_info(info_path)
     setup_queries, context_queries, bug_query = trace_context(queries, index, errlist, msg) # type: ignore
-
-    with open(reduced_path, "w") as f:
-        f.writelines(line + "\n" for line in setup_queries)
-        f.writelines(line + "\n" for line in context_queries)
-        f.writelines(line + "\n" for line in bug_query)
-
+    write_queries(reduced_path, setup_queries + context_queries + bug_query)
     if run_test(args.test, reduced_path, oracle):
         print(len(setup_queries + context_queries + bug_query))
 
+    # first delta debug reduction
     temp_path = os.path.join(TEMP_OUTPUT, "delta.sql")
     if len(queries) > 50:
         delta_queries = setup_queries + delta_debug(setup_queries, context_queries, bug_query, lambda q: run_test(args.test, temp_path, oracle, q), n=2) + bug_query
     else:
         delta_queries = delta_debug([], setup_queries + context_queries + bug_query, [], lambda q: run_test(args.test, temp_path, oracle, q), n=2)
-    
-    with open(reduced_path, "w") as f:
-        f.writelines(line + "\n" for line in delta_queries)
-
+    write_queries(reduced_path, delta_queries)
     if run_test(args.test, reduced_path, oracle):
         print(len(delta_queries))
 
+    # second delta debug reduction
     if len(queries) > 50:
         delta_queries = delta_debug([], delta_queries, [], lambda q: run_test(args.test, temp_path, oracle, q), n=2)
-    
-        with open(reduced_path, "w") as f:
-            f.writelines(line + "\n" for line in delta_queries)
-
+        write_queries(reduced_path, delta_queries)
         if run_test(args.test, reduced_path, oracle):
             print(len(delta_queries))
-    
-    # TODO: save the reduces sql as reduced_test.sql in the same folder as above
-    # TODO: delta debug calls to test-bug.sh (save as delta_test.sql)
 
 if __name__ == "__main__":
     main()
