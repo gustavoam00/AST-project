@@ -7,6 +7,7 @@ from src.config import INFO_OUTPUT, TEMP_OUTPUT
 
 def run_test(test: str, query_path: str, oracle: str, queries: list[str] = []):
     if queries:
+        os.makedirs(os.path.dirname(query_path), exist_ok=True)
         with open(query_path, "w") as f:
             for query in queries:
                 f.write(query + "\n")
@@ -31,6 +32,7 @@ def main():
     original_path = os.path.join(args.query, "original_test.sql")
     reduced_path = os.path.join(args.query, "reduced_test.sql")
     info_path = os.path.join(INFO_OUTPUT, "info.txt")
+    os.makedirs(os.path.dirname(info_path), exist_ok=True)
     with open(info_path, "w") as f:
         f.write("") 
     with open(os.path.join(args.query, "oracle.txt"), "r") as f:
