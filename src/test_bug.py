@@ -40,13 +40,13 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
     """
     reset_db()  # resets the database
 
-    #file1 = os.path.join(TEMP_OUTPUT, f"{path}_{SQLITE_VERSIONS[0]}.sql")
-    #file2 = os.path.join(TEMP_OUTPUT, f"{path}_{SQLITE_VERSIONS[1]}.sql")
-    #file_diff = os.path.join(TEMP_OUTPUT, f"{path}_diff.txt")
+    file1 = os.path.join(TEMP_OUTPUT, f"{path}_{SQLITE_VERSIONS[0]}.sql")
+    file2 = os.path.join(TEMP_OUTPUT, f"{path}_{SQLITE_VERSIONS[1]}.sql")
+    file_diff = os.path.join(TEMP_OUTPUT, f"{path}_diff.txt")
 
-    #for f in [file1, file2, file_diff]:
-    #    if os.path.exists(f):
-    #        os.remove(f)
+    for f in [file1, file2, file_diff]:
+        if os.path.exists(f):
+            os.remove(f)
 
     bugs: int = 0
     errlist: list[str] = []
@@ -66,11 +66,11 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
             out1, err1 = run_query(cmd1)
             out2, err2 = run_query(cmd2)
 
-            #log_output(file1, query, err1 or out1)
-            #log_output(file2, query, err2 or out2)
+            log_output(file1, query, err1 or out1)
+            log_output(file2, query, err2 or out2)
 
             if not err1 and not err2 and out1 != out2:
-                '''with open(file_diff, "a") as f:
+                with open(file_diff, "a") as f:
                     f.write(query + "\n")
                     f.write(f"{v1} Output:\n")
                     for line in out1.splitlines():
@@ -78,7 +78,7 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
                     f.write("\n")
                     f.write(f"{v2} Output:\n")
                     for line in out2.splitlines():
-                        f.write(f"-- {line}\n")'''
+                        f.write(f"-- {line}\n")
                 bugs += 1
                 msg = (out1, out2)
                 return i, errlist, msg
@@ -86,7 +86,7 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
                 errlist.append(query)
 
             if err2 and not err1:
-                '''with open(file_diff, "a") as f:
+                with open(file_diff, "a") as f:
                     f.write(query + "\n")
                     f.write(f"{SQLITE_VERSIONS[0]} Output:\n")
                     for line in out1.splitlines():
@@ -94,13 +94,13 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
                     f.write("\n")
                     f.write(f"{SQLITE_VERSIONS[1]} Output:\n")
                     for line in err2.splitlines():
-                        f.write(f"-- {line}\n")'''
+                        f.write(f"-- {line}\n")
                 bugs += 1
                 msg = (out1, err2)
                 return i, errlist, msg
 
             if err1 and not err2:
-                '''with open(file_diff, "a") as f:
+                with open(file_diff, "a") as f:
                     f.write(query + "\n")
                     f.write(f"{SQLITE_VERSIONS[0]} Output:\n")
                     for line in err1.splitlines():
@@ -108,7 +108,7 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
                     f.write("\n")
                     f.write(f"{SQLITE_VERSIONS[1]} Output:\n")
                     for line in out2.splitlines():
-                        f.write(f"-- {line}\n")'''
+                        f.write(f"-- {line}\n")
                 bugs += 1
                 msg = (err1, out2)
                 return i, errlist, msg
@@ -117,7 +117,7 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
         for i, query in enumerate(queries):     
             cmd1 = f"/usr/bin/{v1} {DB1} \"{query}\""
             out1, err1 = run_query(cmd1)
-            #log_output(file1, query, err1 or out1)
+            log_output(file1, query, err1 or out1)
 
             if err1 and "no such" not in err1:
                 bugs += 1
@@ -128,7 +128,7 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
         for i, query in enumerate(queries):  
             cmd2 = f"/usr/bin/{v2} {DB2} \"{query}\""
             out2, err2 = run_query(cmd2)
-            #log_output(file2, query, err2 or out2)
+            log_output(file2, query, err2 or out2)
 
             if err2 and "no such" not in err2:
                 bugs += 1
