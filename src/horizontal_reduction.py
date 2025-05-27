@@ -191,8 +191,8 @@ def cleaning_pipeline(query):
     new_query = space_it_out(new_query)
     return new_query
 
-
-def delta_debug(full_query, oracle):
+# oracle -> test
+def delta_debug(full_query, test):
     queries = [q.strip() for q in full_query.split(';') if q.strip()]
     minimized_queries = []
 
@@ -200,14 +200,15 @@ def delta_debug(full_query, oracle):
         tokens = q.split()
         reduced_tokens = ddmin(
             tokens,
-            lambda new_tokens: check_query_tokens(full_query, new_tokens, i, queries, oracle)
+            lambda new_tokens: check_query_tokens(full_query, new_tokens, i, queries, test) # oracle -> test
         )
         if reduced_tokens:
             minimized_queries.append(' '.join(reduced_tokens))
 
     return ' ; '.join(minimized_queries) + ' ;'
 
-def check_query_tokens(original, new_tokens, idx, queries, oracle):
+# oracle -> test
+def check_query_tokens(original, new_tokens, idx, queries, test):
     rebuilt = []
     for j, q in enumerate(queries):
         if j == idx:
@@ -215,7 +216,7 @@ def check_query_tokens(original, new_tokens, idx, queries, oracle):
         else:
             rebuilt.append(q.strip())
     new_query = ' ; '.join(rebuilt)
-    return check(original, new_query, oracle)
+    return test([new_query]) #check(original, new_query, oracle)
 
 def ddmin(tokens, test):
     n = 2

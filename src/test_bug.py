@@ -178,7 +178,7 @@ def main():
     else:
         index, errlist, info_msg = read_info(info_path)
     
-    if args.oracle == "DIFF" and msg[0] != msg[1] and ("Error" not in msg[0] or info_msg[0] in msg[0]) and ("Error" not in msg[1] or info_msg[1] in msg[1]):
+    if args.oracle == "DIFF" and msg[0] != msg[1] and ("Error" not in info_msg[0] or info_msg[0] in msg[0]) and ("Error" not in info_msg[1] or info_msg[1] in msg[1]):
         returncode = 0
     elif args.oracle == "CRASH(3.26.0)" and info_msg[0] in msg[0]:
         returncode = 0
