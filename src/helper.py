@@ -82,3 +82,6 @@ def group_queries(queries: list[str], group_size: int = 200) -> list[str]:
         group = " ".join(queries[i:i + group_size])
         grouped.append(group)
     return grouped
+
+def flatten(tokens_list: list[list[str]]) -> list[str]:
+    return [token for tokens in tokens_list for token in tokens]
