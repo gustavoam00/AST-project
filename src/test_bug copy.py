@@ -1,6 +1,5 @@
 import subprocess, os
 from config import SQLITE_VERSIONS, DB1, DB2, TEMP_OUTPUT, INFO_OUTPUT
-from helper import read_info, group_queries
 
 def run_query(cmd: str) -> tuple[str, str]:
     try:
@@ -56,7 +55,7 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
     v2 = SQLITE_VERSIONS[1]
 
     if full:
-        queries = group_queries(queries) #[" ".join(queries)]
+        queries = [" ".join(queries)]
 
     if oracle == "DIFF":
         out1 = out2 = err1 = err2 = None
@@ -120,7 +119,7 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
             out1, err1 = run_query(cmd1)
             log_output(file1, query, err1 or out1)
 
-            if err1:
+            if err1 and "no such" not in err1:
                 bugs += 1
                 msg = (err1, "")
                 return i, errlist, msg
@@ -131,7 +130,7 @@ def run_test(queries: list[str], path: str, oracle: str, full: bool = False) -> 
             out2, err2 = run_query(cmd2)
             log_output(file2, query, err2 or out2)
 
-            if err2:
+            if err2 and "no such" not in err2:
                 bugs += 1
                 msg = ("", err2)
                 return i, errlist, msg
@@ -152,6 +151,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--query", required=True, help="Path to the SQL file")
     parser.add_argument("--oracle", required=True, choices=["DIFF", "CRASH(3.26.0)", "CRASH(3.39.4)"])
+    parser.add_argument("--error")
     args = parser.parse_args()
 
     with open(args.query, 'r') as f:
@@ -164,9 +164,9 @@ def main():
             if cleaned: 
                 queries.append(cleaned + ';') 
 
-    info_path = os.path.join(INFO_OUTPUT, "info.txt")
+    index, errlist, msg = run_test(queries, "reduce", args.oracle)
 
-    index, errlist, msg = run_test(queries, "reduce", args.oracle, full=os.path.exists(info_path))
+    info_path = os.path.join(INFO_OUTPUT, "info.txt")
 
     if not os.path.exists(info_path):
         with open(info_path, "w") as f:
@@ -174,15 +174,12 @@ def main():
             f.write(" ".join(msg[0].split()).strip() + "\n")
             f.write(" ".join(msg[1].split()).strip() + "\n")
             f.writelines(line + "\n" for line in errlist)
-        info_msg = ("Error", "Error")
-    else:
-        index, errlist, info_msg = read_info(info_path)
     
-    if args.oracle == "DIFF" and msg[0] != msg[1] and ("Error" not in msg[0] or info_msg[0] in msg[0]) and ("Error" not in msg[1] or info_msg[1] in msg[1]):
+    if args.oracle == "DIFF" and msg[0] != msg[1]:
         returncode = 0
-    elif args.oracle == "CRASH(3.26.0)" and info_msg[0] in msg[0]:
+    elif args.oracle == "CRASH(3.26.0)" and "Error" in msg[0] and (not args.error or args.error in msg[0]):
         returncode = 0
-    elif args.oracle == "CRASH(3.39.4)" and info_msg[1] in msg[1]:
+    elif args.oracle == "CRASH(3.39.4)" and "Error" in msg[1] and (not args.error or args.error in msg[1]):
         returncode = 0
     else:
         returncode = 1

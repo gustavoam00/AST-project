@@ -81,7 +81,7 @@ def reduce_temp_tables(query: str) -> str:
 
     return remove_false_where_exists(new_query)
 
-def vertical_delta_debug(setup_queries: list[str], queries: list[str], error_query: list[str], test: Callable[..., bool], n: int=2) -> list[str]:
+def vertical_delta_debug(setup_queries: list[str], queries: list[str], error_query: list[str], test: Callable[[list[str]], bool], n: int=2) -> list[str]:
     if len(queries) == 0:
         return []
 

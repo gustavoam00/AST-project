@@ -75,3 +75,10 @@ def read_info(path: str) -> tuple[int, list[str], tuple[str, str]]:
 def write_queries(path: str, queries: list[str]):
      with open(path, "w") as f:
         f.writelines(line + "\n" for line in queries)
+
+def group_queries(queries: list[str], group_size: int = 200) -> list[str]:
+    grouped: list[str] = []
+    for i in range(0, len(queries), group_size):
+        group = " ".join(queries[i:i + group_size])
+        grouped.append(group)
+    return grouped

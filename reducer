@@ -2,8 +2,9 @@
 import argparse, subprocess, os
 from src.vertical_reduction import trace_context, vertical_delta_debug, reduce_temp_tables
 from src.horizontal_reduction import cleaning_pipeline
+from src.initial_test import initial_run_test
 from src.config import INFO_OUTPUT
-from src.helper import get_queries, read_info, write_queries
+from src.helper import get_queries, write_queries
 
 # TODO: probably do not need query_path or oracle, test script should automatically find the information needed
 def run_test_script(test: str, query_path: str, queries: list[str] = []):
@@ -46,13 +47,17 @@ def main():
     # REDUCTION
     queries = get_queries(original_path)
     save_query = queries
-    print(save_query)
+
     write_queries(reduced_path, save_query)
-    run_test_script(args.test, reduced_path)
+    index, errlist, msg = initial_run_test(save_query, "reduce")
+    with open(info_path, "w") as f:
+        f.write(str(index) + "\n")
+        f.write(" ".join(msg[0].split()).strip() + "\n")
+        f.write(" ".join(msg[1].split()).strip() + "\n")
+        f.writelines(line + "\n" for line in errlist)
     print("0", len(save_query))
 
     # TRACE CONTEXT REDUCTION
-    index, errlist, msg = read_info(info_path)
     setup_queries, context_queries, bug_query = trace_context(save_query, index, errlist, msg) # type: ignore
     write_queries(reduced_path, setup_queries + context_queries + bug_query)
     if not run_test_script(args.test, reduced_path):
@@ -97,7 +102,7 @@ def main():
         print("4", len(save_query))
 
     # SECOND DELTA DEBUG REDUCTION
-    if len(queries) > 50:
+    if len(queries) > 50 and len(save_query) < 30:
         delta_queries = vertical_delta_debug([], save_query, [], lambda q: run_test_script(args.test, reduced_path, q), n=2)
         write_queries(reduced_path, delta_queries)
         if not run_test_script(args.test, reduced_path):
@@ -105,6 +110,9 @@ def main():
         else:
             save_query = delta_queries
             print("5", len(save_query))
+
+    # FINAL RESULT FOR DEBUGGING
+    run_test_script(args.test, reduced_path)
 
 if __name__ == "__main__":
     main()
