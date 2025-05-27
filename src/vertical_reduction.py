@@ -1,19 +1,87 @@
 import re
-from collections import defaultdict
 from typing import Callable
 
-def group_by_table(queries):
-    table_groups = defaultdict(list)
-    for q in queries:
-        match = re.match(r'INSERT INTO\s+([A-Za-z_][A-Za-z0-9_]*)', q)
-        if match:
-            table = match.group(1)
-            table_groups[table].append(q)
-        else:
-            table_groups[None].append(q) 
-    return table_groups
+def remove_false_where_exists(sql: str) -> str:
+    """
+    Replace WHERE EXISTS (...) blocks that contain always-false conditions like `x <> x`
+    with WHERE FALSE or remove them if safe.
+    """
+    exists_pattern = re.compile(r"WHERE\s+EXISTS\s*\((.*?)\)")
 
-def delta_debug(setup_queries: list[str], queries: list[str], error_query: list[str], test: Callable[..., bool], n: int=2) -> list[str]:
+    def is_always_false(subquery: str) -> bool:
+        return bool(re.search(r"(\w+)\s*<>\s*\1", subquery))
+
+    def replacer(match: re.Match[str]) -> str:
+        subquery = match.group(1)
+        if is_always_false(subquery):
+            return "WHERE FALSE"
+        return match.group(0)
+
+    return exists_pattern.sub(replacer, sql)
+
+def extract_temp(query: str) -> tuple[list[str], list[str], str]:
+    query = query.strip()
+    temp_names: list[str] = []
+    temp_subqueries: list[str] = []
+
+    i = query.upper().find("WITH") + 4
+    length = len(query)
+
+    while i < length:
+        while i < length and query[i].isspace():
+            i += 1
+
+        start = i
+        while i < length and (query[i].isalnum() or query[i] == "_"):
+            i += 1
+        temp_names.append(query[start:i])
+
+        while i < length and query[i] != '(':
+            i += 1
+        if i == length:
+            break
+        i += 1 
+
+        depth = 1
+        while i < length and depth > 0:
+            if query[i] == '(':
+                depth += 1
+            elif query[i] == ')':
+                depth -= 1
+            i += 1
+
+        temp_subqueries.append(query[start:i])
+
+        while i < length and query[i].isspace():
+            i += 1
+        if i < length and query[i] == ',':
+            i += 1 
+        else:
+            break  
+
+    return temp_names, temp_subqueries, query[i:]
+
+def reduce_temp_tables(query: str) -> str:
+    cte_names, cte_subqueries, query = extract_temp(query)
+    
+    table_candidates = re.findall(r'\bFROM\s+([A-Za-z0-9_]+)|\bJOIN\s+([A-Za-z0-9_]+)', query)
+    flat_tables = [item for pair in table_candidates for item in pair if item]
+    
+    tables = [t for t in flat_tables if t in cte_names]
+
+    used_cte: list[str] = []
+    for t in tables:
+        index = cte_names.index(t)
+        used_cte.append(cte_subqueries[index])
+
+    if used_cte:
+        new_query = "WITH " + ", ".join(used_cte) + query
+    else: 
+        new_query = query
+
+    return remove_false_where_exists(new_query)
+
+def vertical_delta_debug(setup_queries: list[str], queries: list[str], error_query: list[str], test: Callable[..., bool], n: int=2) -> list[str]:
     if len(queries) == 0:
         return []
 
@@ -36,11 +104,11 @@ def delta_debug(setup_queries: list[str], queries: list[str], error_query: list[
 
         for delta_i in subsets:
             if test(setup_queries + delta_i + error_query):
-                return delta_debug(setup_queries, delta_i, error_query, test, n=2)
+                return vertical_delta_debug(setup_queries, delta_i, error_query, test, n=2)
 
         for nabla_i in complements:
             if test(setup_queries + nabla_i + error_query):
-                return delta_debug(setup_queries, nabla_i, error_query, test, n=max(n - 1, 2))
+                return vertical_delta_debug(setup_queries, nabla_i, error_query, test, n=max(n - 1, 2))
 
         if n >= length:
             break

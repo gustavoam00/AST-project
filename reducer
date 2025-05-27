@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import argparse, subprocess, os
-from src.vertical_reduction import trace_context, delta_debug
-from src.config import INFO_OUTPUT, TEMP_OUTPUT
+from src.vertical_reduction import trace_context, vertical_delta_debug, reduce_temp_tables
+from src.horizontal_reduction import cleaning_pipeline
+from src.config import INFO_OUTPUT
 from src.helper import get_queries, read_info, write_queries
 
-def run_test(test: str, query_path: str, oracle: str, queries: list[str] = []):
+# TODO: probably do not need query_path or oracle, test script should automatically find the information needed
+def run_test_script(test: str, query_path: str, queries: list[str] = []):
     if queries:
         os.makedirs(os.path.dirname(query_path), exist_ok=True)
         with open(query_path, "w") as f:
@@ -12,7 +14,7 @@ def run_test(test: str, query_path: str, oracle: str, queries: list[str] = []):
                 f.write(query + "\n")
     try:
         result = subprocess.run(
-            [test, query_path, oracle],
+            [test],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -27,45 +29,82 @@ def main():
     parser.add_argument("--query", required=True, help="Path to SQL query file")
     parser.add_argument("--test", required=True, help="Shell script to test for the bug")
     args = parser.parse_args()
+    # NULLIF(a, b) is NULL if a == b else a
+    # remove column, WITH AS SELECT
 
-    # path setup
-    original_path = os.path.join(args.query, "original_test.sql")
-    reduced_path = os.path.join(args.query, "reduced_test.sql")
+    # PATH SETUP
+    original_path = str(args.query)
+    default_reduced_path = args.test
+    test_case_path = os.environ.get("TEST_CASE_LOCATION", default_reduced_path)
+    reduced_path = os.path.join(os.path.dirname(test_case_path), "query.sql")
+
     info_path = os.path.join(INFO_OUTPUT, "info.txt")
     os.makedirs(os.path.dirname(info_path), exist_ok=True)
-    with open(info_path, "w") as f:
-        f.write("") 
-    with open(os.path.join(args.query, "oracle.txt"), "r") as f:
-        oracle = str(f.read().strip())
+    if os.path.exists(info_path):
+        os.remove(info_path)
 
-    # reduction
-    run_test(args.test, original_path, oracle)
+    # REDUCTION
     queries = get_queries(original_path)
-    print(len(queries))
+    save_query = queries
+    print(save_query)
+    write_queries(reduced_path, save_query)
+    run_test_script(args.test, reduced_path)
+    print("0", len(save_query))
 
-    # trace context reduction
+    # TRACE CONTEXT REDUCTION
     index, errlist, msg = read_info(info_path)
-    setup_queries, context_queries, bug_query = trace_context(queries, index, errlist, msg) # type: ignore
+    setup_queries, context_queries, bug_query = trace_context(save_query, index, errlist, msg) # type: ignore
     write_queries(reduced_path, setup_queries + context_queries + bug_query)
-    if run_test(args.test, reduced_path, oracle):
-        print(len(setup_queries + context_queries + bug_query))
-
-    # first delta debug reduction
-    temp_path = os.path.join(TEMP_OUTPUT, "delta.sql")
-    if len(queries) > 50:
-        delta_queries = setup_queries + delta_debug(setup_queries, context_queries, bug_query, lambda q: run_test(args.test, temp_path, oracle, q), n=2) + bug_query
+    if not run_test_script(args.test, reduced_path):
+        write_queries(reduced_path, save_query)
     else:
-        delta_queries = delta_debug([], setup_queries + context_queries + bug_query, [], lambda q: run_test(args.test, temp_path, oracle, q), n=2)
-    write_queries(reduced_path, delta_queries)
-    if run_test(args.test, reduced_path, oracle):
-        print(len(delta_queries))
+        save_query = setup_queries + context_queries + bug_query
+        print("1", len(save_query))
 
-    # second delta debug reduction
+    # QUERY CLEAN UP REDUCTION
+    cleaned_queries = [cleaning_pipeline(q) for q in save_query]
+    write_queries(reduced_path, cleaned_queries)
+    if not run_test_script(args.test, reduced_path):
+        write_queries(reduced_path, save_query)
+    else:
+        save_query = cleaned_queries
+        print("2", len(save_query))
+
+    # FIRST DELTA DEBUG REDUCTION
     if len(queries) > 50:
-        delta_queries = delta_debug([], delta_queries, [], lambda q: run_test(args.test, temp_path, oracle, q), n=2)
+        delta_queries = setup_queries + vertical_delta_debug(setup_queries, context_queries, bug_query, lambda q: run_test_script(args.test, reduced_path, q), n=2) + bug_query
+    else:
+        delta_queries = vertical_delta_debug([], save_query, [], lambda q: run_test_script(args.test, reduced_path, q), n=2)
+    write_queries(reduced_path, delta_queries)
+    if not run_test_script(args.test, reduced_path):
+        write_queries(reduced_path, save_query)
+    else:
+        save_query = delta_queries
+        print("3", len(save_query))
+
+    # CLEANING, TODO: add more?
+    cleaned_query: list[str] = []
+    for query in delta_queries:
+        if query.startswith("WITH"):
+            cleaned_query.append(reduce_temp_tables(query))
+        else:
+            cleaned_query.append(query)
+    write_queries(reduced_path, cleaned_query)
+    if not run_test_script(args.test, reduced_path):
+        write_queries(reduced_path, save_query)
+    else:
+        save_query = cleaned_query
+        print("4", len(save_query))
+
+    # SECOND DELTA DEBUG REDUCTION
+    if len(queries) > 50:
+        delta_queries = vertical_delta_debug([], save_query, [], lambda q: run_test_script(args.test, reduced_path, q), n=2)
         write_queries(reduced_path, delta_queries)
-        if run_test(args.test, reduced_path, oracle):
-            print(len(delta_queries))
+        if not run_test_script(args.test, reduced_path):
+            write_queries(reduced_path, save_query)
+        else:
+            save_query = delta_queries
+            print("5", len(save_query))
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,2 @@
+CREATE VIEW view1 AS VALUES ( 0x7067e3cec226b60e % 904.1747253662293 ) ;
+SELECT * FROM ( view1 ) AS gwydaz WHERE abs ( -6002 ) ;
