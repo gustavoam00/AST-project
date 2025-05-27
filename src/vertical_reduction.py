@@ -34,52 +34,67 @@ def extract_temp(query: str) -> tuple[list[str], list[str], str]:
         start = i
         while i < length and (query[i].isalnum() or query[i] == "_"):
             i += 1
-        temp_names.append(query[start:i])
+        name = query[start:i]
+        temp_names.append(name)
 
         while i < length and query[i] != '(':
             i += 1
         if i == length:
             break
-        i += 1 
+        i += 1
 
         depth = 1
+        start_subq = i
         while i < length and depth > 0:
             if query[i] == '(':
                 depth += 1
             elif query[i] == ')':
                 depth -= 1
             i += 1
-
-        temp_subqueries.append(query[start:i])
+        subquery = query[start_subq:i - 1].strip()
+        temp_subqueries.append(subquery)
 
         while i < length and query[i].isspace():
             i += 1
         if i < length and query[i] == ',':
-            i += 1 
+            i += 1
         else:
-            break  
+            break
 
     return temp_names, temp_subqueries, query[i:]
 
+def extract_dependencies(query: str, temp_names: list[str]) -> set[str]:
+    matches = re.findall(r'\bFROM\s+([A-Za-z0-9_]+)|\bJOIN\s+([A-Za-z0-9_]+)', query, flags=re.IGNORECASE)
+    tables = {name for pair in matches for name in pair if name}
+    return {t for t in tables if t in temp_names}
+
+def find_used_with(final_query: str, temp_names: list[str], cte_subqueries: list[str]) -> set[str]:
+    used: set[str] = set()
+    queue = list(extract_dependencies(final_query, temp_names))
+
+    while queue:
+        cte = queue.pop()
+        if cte not in used:
+            used.add(cte)
+            index = temp_names.index(cte)
+            deps = extract_dependencies(cte_subqueries[index], temp_names)
+            queue.extend(deps - used)
+
+    return used
+
 def reduce_temp_tables(query: str) -> str:
-    cte_names, cte_subqueries, query = extract_temp(query)
-    
-    table_candidates = re.findall(r'\bFROM\s+([A-Za-z0-9_]+)|\bJOIN\s+([A-Za-z0-9_]+)', query)
-    flat_tables = [item for pair in table_candidates for item in pair if item]
-    
-    tables = [t for t in flat_tables if t in cte_names]
+    temp_names, temp_subqueries, final_query = extract_temp(query)
+    with_queries = find_used_with(final_query, temp_names, temp_subqueries)
 
-    used_cte: list[str] = []
-    for t in tables:
-        index = cte_names.index(t)
-        used_cte.append(cte_subqueries[index])
+    kept_temp: list[str] = []
+    for name, subquery in zip(temp_names, temp_subqueries):
+        if name in with_queries:
+            kept_temp.append(f"{name} AS ({subquery})")
 
-    if used_cte:
-        new_query = "WITH " + ", ".join(used_cte) + query
-    else: 
-        new_query = query
-
-    return remove_false_where_exists(new_query)
+    if kept_temp:
+        return "WITH " + ", ".join(kept_temp) + "\n" + final_query
+    else:
+        return final_query
 
 def vertical_delta_debug(setup_queries: list[str], queries: list[str], error_query: list[str], test: Callable[[list[str]], bool], n: int=2) -> list[str]:
     if len(queries) == 0:
