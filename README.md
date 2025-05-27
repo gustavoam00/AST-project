@@ -8,11 +8,11 @@
 Run with:
 ```
 python3 main.py
-./reducer --query <path_to_query_folder> --test <test_script>
+./reducer --query <path_to_query_folder> --test <path_to_test_script>
 ```
 example:
 ```
-./reducer --query queries/query1 --test ./test_bug.sh
+./reducer --query queries/query1/original_test.sql --test queries/query1/test-script.sh
 ```
 add functions to call into main.py
 
