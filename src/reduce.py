@@ -1,5 +1,5 @@
 import subprocess
-from src.helper import get_coverage, sql_cleaner
+from src.helper import sql_cleaner
 from pathlib import Path
 from src.config import BUGS_FOLDER, SQLITE_VERSIONS, DB1, DB2, QUERY_TEST_FOLDER
 from tqdm import tqdm

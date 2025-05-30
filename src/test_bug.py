@@ -152,6 +152,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--query", required=True, help="Path to the SQL file")
     parser.add_argument("--oracle", required=True, choices=["DIFF", "CRASH(3.26.0)", "CRASH(3.39.4)"])
+    parser.add_argument("--notfull", action="store_false", help="Not full query")
     args = parser.parse_args()
 
     '''with open(args.query, 'r') as f:
@@ -167,7 +168,7 @@ def main():
 
     info_path = os.path.join(INFO_OUTPUT, "info.txt")
 
-    index, errlist, msg = run_test(queries, "reduce", args.oracle, full=os.path.exists(info_path))
+    index, errlist, msg = run_test(queries, "reduce", args.oracle, full=(os.path.exists(info_path) and args.notfull))
 
     if not os.path.exists(info_path):
         with open(info_path, "w") as f:
