@@ -2,8 +2,7 @@ import re
 import sys
 import difflib
 from tqdm import tqdm
-from src.reduce import check, load_query_and_oracle, run_query2
-from collections import Counter
+from src.reduce import check, load_query_and_oracle
 
 def show_sql_diff(sql1, sql2):
     sql1_lines = [line.strip() for line in sql1.strip().split(';') if line.strip()]
@@ -63,7 +62,7 @@ def simplify_sql(query):
 
     paren_expr = re.compile(r'\(([^()]+)\)')
     keywords_to_wrap = [
-        'values', 'in', 'select', 'insert', 'into', 'update', 'set', 'where',
+        'values', 'in', #'set', 'update', 'insert', 'into', 'select', 'where',
 
         'lower', 'upper', 'lag', 'lead', 'abs', 'sum', 'avg', 'min', 'max',
         'count', 'length', 'trim', 'substr', 'round', 'cast', 'coalesce',
@@ -190,6 +189,17 @@ def cleaning_pipeline(query):
     # new_ query = remove unecessary parenthesis
     new_query = space_it_out(new_query)
     return new_query
+
+def cleaning_by_query(query_list, test):
+    result = []
+    for i in range(len(query_list)):
+        query = query_list[i]
+        cleaned = cleaning_pipeline(query)
+        if test(result + [cleaned] + query_list[i+1:]):
+            result.append(cleaned)
+        else:
+            result.append(query)
+    return result
 
 # oracle -> test
 def delta_debug(full_query, test):
