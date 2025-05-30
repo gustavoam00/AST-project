@@ -127,15 +127,16 @@ def main():
             save_query = delta_queries
             print("SECOND VERTICAL DELTA DEBUG SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
-    delta_query = delta_debug(" ".join(save_query), lambda q: run_test_script(args.test, reduced_path, q))
-    delta_queries = [q.strip() + " ;" for q in delta_query.split(";") if q.strip()]
-    write_queries(reduced_path, delta_queries)
-    if not run_test_script(args.test, reduced_path):
-        write_queries(reduced_path, save_query)
-        print("THIRD DELTA DEBUG FAILED:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
-    else:
-        save_query = delta_queries
-        print("THIRD DELTA DEBUG SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+    if len(flatten([q.split(" ") for q in save_query])) < 250:
+        delta_query = delta_debug(" ".join(save_query), lambda q: run_test_script(args.test, reduced_path, q))
+        delta_queries = [q.strip() + " ;" for q in delta_query.split(";") if q.strip()]
+        write_queries(reduced_path, delta_queries)
+        if not run_test_script(args.test, reduced_path):
+            write_queries(reduced_path, save_query)
+            print("THIRD DELTA DEBUG FAILED:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        else:
+            save_query = delta_queries
+            print("THIRD DELTA DEBUG SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     # TRACE CONTEXT REDUCTION
     setup_queries, context_queries, bug_query = trace_context(save_query, len(save_query)-1, errlist, msg)

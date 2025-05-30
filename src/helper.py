@@ -1,26 +1,4 @@
 import re
-
-def get_coverage(result: str) -> tuple[float, str]:
-    lines = re.search(r"Lines executed:([\d.]+)% of (\d+)", result)
-    branches = re.search(r"Branches executed:([\d.]+)% of (\d+)", result)
-    taken = re.search(r"Taken at least once:([\d.]+)% of (\d+)", result)
-    calls = re.search(r"Calls executed:([\d.]+)% of (\d+)", result)
-    if lines and branches and taken and calls:
-        lines_p = float(lines.group(1))
-        branches_p = float(branches.group(1))
-        taken_p = float(taken.group(1))
-        calls_p = float(calls.group(1))
-        return lines_p, branches_p, taken_p, calls_p, result
-    else:
-        return 0, 0, 0, 0, "Error: Could not extract coverage info."
-    
-def coverage_score(lines, branches, taken, calls, weights=(1.0, 1.0, 1.0, 1.0)):
-    return (
-        weights[0] * lines +
-        weights[1] * branches +
-        weights[2] * taken +
-        weights[3] * calls
-    ) / float(sum(weights))
     
 def save_error(msg: str, savepath: str, save: bool = False) -> int:
     errors = re.findall(r"(Error:.*)\n", msg)
@@ -51,16 +29,51 @@ def sql_cleaner(queries: str) -> list[str]:
 
 def get_queries(path: str) -> list[str]:
     with open(path, 'r') as f:
-        query  = f.read().rstrip()
-        raw_queries = query.split(';')
+        lines = f.readlines()
+    lines = [line for line in lines if not line.strip().startswith('.')]
+    lines = ''.join(lines)
 
-        queries: list[str] = []
-        for query in raw_queries:
-            cleaned = ' '.join(query.strip().split())
-            if cleaned: 
-                queries.append(cleaned + ';') 
-    
+    queries: list[str] = []
+    current_query: list[str] = []
+    in_single_quote = False
+    in_double_quote = False
+    i = 0
+    length = len(lines)
+
+    while i < length:
+        char = lines[i]
+        next_char = lines[i+1] if i + 1 < length else ''
+        current_query.append(char)
+
+        if char == "'" and not in_double_quote:
+            if next_char == "'":  
+                current_query.append(next_char)
+                i += 1 
+            else:
+                in_single_quote = not in_single_quote
+
+        elif char == '"' and not in_single_quote:
+            if next_char == '"':
+                current_query.append(next_char)
+                i += 1
+            else:
+                in_double_quote = not in_double_quote
+
+        elif char == ';' and not in_single_quote and not in_double_quote:
+            query = ''.join(current_query).strip()
+            if query:
+                queries.append(query)
+            current_query = []
+
+        i += 1
+
+    if current_query:
+        query = ''.join(current_query).strip()
+        if query:
+            queries.append(query)
+
     return queries
+
 
 def read_info(path: str) -> tuple[int, list[str], tuple[str, str]]:
     with open(path, "r") as f:

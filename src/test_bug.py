@@ -1,6 +1,6 @@
 import subprocess, os
 from config import SQLITE_VERSIONS, DB1, DB2, TEMP_OUTPUT, INFO_OUTPUT
-from helper import read_info, group_queries
+from helper import read_info, group_queries, get_queries
 
 def run_query(cmd: str) -> tuple[str, str]:
     try:
@@ -154,7 +154,7 @@ def main():
     parser.add_argument("--oracle", required=True, choices=["DIFF", "CRASH(3.26.0)", "CRASH(3.39.4)"])
     args = parser.parse_args()
 
-    with open(args.query, 'r') as f:
+    '''with open(args.query, 'r') as f:
         query  = f.read().rstrip()
         raw_queries = query.split(';')
 
@@ -162,7 +162,8 @@ def main():
         for query in raw_queries:
             cleaned = ' '.join(query.strip().split())
             if cleaned: 
-                queries.append(cleaned + ';') 
+                queries.append(cleaned + ';') '''
+    queries = get_queries(args.query)
 
     info_path = os.path.join(INFO_OUTPUT, "info.txt")
 

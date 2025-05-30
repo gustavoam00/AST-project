@@ -144,7 +144,7 @@ def extract_tables(query: str) -> tuple[list[str], list[str]]:
     q3 = re.findall(r'INTO\s+([A-Za-z_][A-Za-z0-9_]*)', query_clean) 
     q4 = re.findall(r'FROM\s+([A-Za-z_][A-Za-z0-9_]*)', query_clean)
     q5 = re.findall(r'JOIN\s+([A-Za-z_][A-Za-z0-9_]*)', query_clean)
-    q6 = re.findall(r'ON\s+([A-Za-z_][A-Za-z0-9_]*)\([A-Za-z_][A-Za-z0-9_]*\)', query_clean)
+    q6 = re.findall(r'ON\s+([A-Za-z_][A-Za-z0-9_]*)', query_clean)
     q7 =re.findall(r'UPDATE\s+([A-Za-z_][A-Za-z0-9_]*)', query_clean)
     q8 = re.findall(r'DELETE FROM\s+([A-Za-z_][A-Za-z0-9_]*)', query_clean)
     q9 = re.findall(r'ALTER TABLE\s+([A-Za-z_][A-Za-z0-9_]*)', query_clean)
