@@ -2,24 +2,14 @@ import re
 import sys
 import difflib
 from tqdm import tqdm
-from src.reduce import check, load_query_and_oracle
 
-def show_sql_diff(sql1, sql2):
-    sql1_lines = [line.strip() for line in sql1.strip().split(';') if line.strip()]
-    sql2_lines = [line.strip() for line in sql2.strip().split(';') if line.strip()]
+KEYWORDS = [
+    'values', 'in', #'set', 'update', 'insert', 'into', 'select', 'where',
 
-    diff = list(difflib.unified_diff(
-        sql1_lines, 
-        sql2_lines,
-        fromfile='Original',
-        tofile='Modified',
-        lineterm=''
-    ))
-
-    if not diff:
-        print("No differences found.")
-    else:
-        print("\n".join(diff))
+    'lower', 'upper', 'lag', 'lead', 'abs', 'sum', 'avg', 'min', 'max',
+    'count', 'length', 'trim', 'substr', 'round', 'cast', 'coalesce',
+    'nullif', 'ifnull', 'date', 'datetime', 'quote', 'zeroblob', 'typeof',
+    ]
             
 def simplify_sql(query):
     def try_eval_math(expr):
@@ -61,13 +51,6 @@ def simplify_sql(query):
         return None
 
     paren_expr = re.compile(r'\(([^()]+)\)')
-    keywords_to_wrap = [
-        'values', 'in', #'set', 'update', 'insert', 'into', 'select', 'where',
-
-        'lower', 'upper', 'lag', 'lead', 'abs', 'sum', 'avg', 'min', 'max',
-        'count', 'length', 'trim', 'substr', 'round', 'cast', 'coalesce',
-        'nullif', 'ifnull', 'date', 'datetime', 'quote', 'zeroblob',
-    ]
     
     while True:
         changed = False
@@ -83,7 +66,7 @@ def simplify_sql(query):
                 context_before = query[:match.start()].rstrip().lower()
                 prev_word = context_before.split()[-1] if context_before.split() else ""
 
-                if prev_word in keywords_to_wrap:
+                if prev_word in KEYWORDS:
                     result = f'__open__ {result} __close__'
                 elif prev_word == ',' and context_before.split()[-2] == '__close__':
                     result = f'__open__ {result} __close__'
@@ -160,17 +143,58 @@ def strip_select(query): #group and order by maybe possible, more difficult
     query = re.sub(r'\bDISTINCT\b', '', query, flags=re.IGNORECASE)
     return query
 
-def clean_semicolons(sql: str) -> str:
+def clean_semicolons(sql):
     sql = re.sub(r'(;\s*){2,}', '; ', sql)
     return sql.strip()
 
-def remove_nested_parentheses(s: str) -> str:
+def remove_nested_parentheses(s):
     pattern = re.compile(r'\(\s*\(([^()]*?)\)\s*\)')
     prev = None
     while prev != s:
         prev = s
         s = pattern.sub(r'(\1)', s)
     return s
+
+def remove_functions(s):
+    s = re.sub(r'CAST\s*\(\s*(.*?)\s+AS\s+[^)]+\)', r'\1', s, flags=re.IGNORECASE)
+    s = re.sub(r'TYPEOF\s*\(\s*(.*?)\s*\)', r'\1', s, flags=re.IGNORECASE)
+    s = re.sub(r'QUOTE\s*\(\s*(.*?)\s*\)', r'\1', s, flags=re.IGNORECASE)
+
+    return s.strip()
+
+def remove_useless_parentheses(s):
+    keyword_pattern = '|'.join(KEYWORDS)
+    pattern = re.compile(r'\(\s*([^\s()]+)\s*\)')
+
+    def is_useless(match):
+        start = match.start()
+        before = s[:start].rstrip()
+
+        # Look behind for keyword + optional space
+        for kw in KEYWORDS:
+            if re.search(rf'\b{kw}\s*$', before, re.IGNORECASE):
+                return False
+
+        # Look for ")," before the match
+        if re.search(r'\)\s*,\s*$', before):
+            return False
+
+        return True
+
+    matches = list(pattern.finditer(s))
+    new_s = s
+    offset = 0
+
+    for match in matches:
+        if is_useless(match):
+            span = match.span()
+            # Replace the whole "(token)" with just "token"
+            token = match.group(1)
+            start, end = span[0] + offset, span[1] + offset
+            new_s = new_s[:start] + token + new_s[end:]
+            offset += len(token) - (end - start)
+
+    return new_s
 
 def space_it_out(query):
     query = query.replace('(', ' ( ').replace(')', ' ) ')
@@ -186,7 +210,13 @@ def cleaning_pipeline(query):
     new_query = remove_nested_parentheses(new_query)
     new_query = strip_column_types(new_query)
     new_query = strip_select(new_query)
-    # new_ query = remove unecessary parenthesis
+    new_query = remove_functions(new_query)
+    new_query = space_it_out(new_query)
+    return new_query
+
+def aggressive_cleaning_pipeline(query):
+    new_query = cleaning_pipeline(query)
+    new_query = remove_useless_parentheses(new_query)
     new_query = space_it_out(new_query)
     return new_query
 
@@ -201,32 +231,28 @@ def cleaning_by_query(query_list, test):
             result.append(query)
     return result
 
-# oracle -> test
-def delta_debug(full_query, test):
-    queries = [q.strip() for q in full_query.split(';') if q.strip()]
+def delta_debug(queries, test):
     minimized_queries = []
 
-    for i, q in tqdm(list(enumerate(queries)), total=len(queries)):
+    for i, q in enumerate(queries):
         tokens = q.split()
         reduced_tokens = ddmin(
             tokens,
-            lambda new_tokens: check_query_tokens(full_query, new_tokens, i, queries, test) # oracle -> test
+            lambda new_tokens: check_query_tokens(new_tokens, i, queries, test)
         )
         if reduced_tokens:
             minimized_queries.append(' '.join(reduced_tokens))
 
-    return ' ; '.join(minimized_queries) + ' ;'
+    return minimized_queries
 
-# oracle -> test
-def check_query_tokens(original, new_tokens, idx, queries, test):
+def check_query_tokens(new_tokens, idx, queries, test):
     rebuilt = []
     for j, q in enumerate(queries):
         if j == idx:
             rebuilt.append(' '.join(new_tokens))
         else:
             rebuilt.append(q.strip())
-    new_query = ' ; '.join(rebuilt)
-    return test([new_query]) #check(original, new_query, oracle)
+    return test(rebuilt)
 
 def ddmin(tokens, test):
     n = 2
@@ -259,49 +285,10 @@ def ddmin(tokens, test):
     
 
 def main():
-    arg = int(sys.argv[1])
-    
-    if arg == 0:
-        for i in range(1, 21):
-            if i == 17: 
-                continue
-            query, oracle = load_query_and_oracle(i)
-            new_query = cleaning_pipeline(query)
-            # print(new_query)
-            check_ = check(query, new_query, oracle)
-            print(str(i) + oracle + ':'+ str(check_))
-            if not check_:
-                print(i)
-                show_sql_diff(space_it_out(query), new_query)
-                break
-    else:
-        query, oracle = load_query_and_oracle(arg)
-        new_query = cleaning_pipeline(query)
-        print(new_query)
-        new_query = delta_debug(new_query, oracle)
-        print('+++++')
-        print(new_query)
-    
-    # print('====')
-    # out0, err0 = run_query2(query, 0)
-    # out1, err1 = run_query2(query, 1)
-    # print(out0)
-    # print('----')
-    # print(err0)
-    # print('====')
-    # print(out1)
-    # print('----')
-    # print(err1)
-    # print('=======')
-    # out0, err0 = run_query2(new_query, 0)
-    # out1, err1 = run_query2(new_query, 1)
-    # print(out0)
-    # print('----')
-    # print(err0)
-    # print('====')
-    # print(out1)
-    # print('----')
-    # print(err1)
+    query = "SELECT * FROM tbl0 WHERE ( NOT ( ( ( CAST ( tbl0.c1 AS BLOB ) ) - ( tbl0.c0 NOTNULL ) ) % ( tbl0.c2 ) ) ) NOT IN ( ( ( ( ( tbl0.c0 ) <> ( tbl0.c0 ) ) NOT BETWEEN ( TYPEOF ( tbl0.c2 ) ) AND ( CAST ( tbl0.c2 AS INT ) ) ) LIKE ( ( x'7B85F7B0' ) IS NOT ( ( tbl0.c1 ) AND ( tbl0.c0 ) AND ( tbl0.c2 ) OR ( tbl0.c0 ) OR ( tbl0.c0 ) ) ) ) NOT BETWEEN ( ( ( TYPEOF ( tbl0.c1 ) ) % ( CAST ( tbl0.c1 AS INT ) ) ) / ( ( CAST ( tbl0.c2 AS BLOB ) ) OR ( TYPEOF ( tbl0.c2 ) ) OR ( TYPEOF ( tbl0.c0 ) ) OR ( ( tbl0.c2 ) = ( tbl0.c2 ) ) ) ) AND ( ( 'y5db:DC4[J/t|D\z[w ; Len 6k.Hwp' ) BETWEEN ( TYPEOF ( tbl0.c1 ) ) AND ( ( tbl0.c0 ) != ( tbl0.c1 ) ) IS FALSE ) ) ;"
+    new_query = cleaning_pipeline(query)
+    new_query = aggressive_cleaning_pipeline(query)
+    print(new_query)
     return
     
 if __name__ == "__main__":
