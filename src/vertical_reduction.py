@@ -1,5 +1,6 @@
 import re
 from typing import Callable
+from collections import defaultdict
 
 def remove_false_where_exists(sql: str) -> str:
     """
@@ -213,3 +214,27 @@ def trace_context(queries: list[str], index: int, errlist: list[str], msg: tuple
                         dependency_tables.append(t)
     
     return tables, result, [queries[index]]
+
+def compress_insert(queries: list[str]) -> list[str]:
+    inserts_by_table: dict[str, list[str]] = defaultdict(list)
+    output_lines: list[str] = []
+    table_first_line_index: dict[str, int] = {}
+    insert_pattern = re.compile(r"INSERT\s+INTO\s+(\w+)\s+VALUES\s*\((.*)\)\s*;")
+
+    for i, line in enumerate(queries):
+        stripped = line.strip()
+        match = insert_pattern.match(stripped)
+        if match:
+            table, values = match.groups()
+            inserts_by_table[table].append(values.strip())
+            if table not in table_first_line_index:
+                table_first_line_index[table] = len(output_lines)
+        else:
+            output_lines.append(stripped)
+
+    for table, values in inserts_by_table.items():
+        compressed_insert = f"INSERT INTO {table} VALUES " + ", ".join(f"({v})" for v in values) + ";"
+        insert_pos = table_first_line_index[table]
+        output_lines.insert(insert_pos, compressed_insert)
+
+    return output_lines

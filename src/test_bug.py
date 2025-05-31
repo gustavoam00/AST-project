@@ -155,15 +155,6 @@ def main():
     parser.add_argument("--notfull", action="store_false", help="Not full query")
     args = parser.parse_args()
 
-    '''with open(args.query, 'r') as f:
-        query  = f.read().rstrip()
-        raw_queries = query.split(';')
-
-        queries: list[str] = []
-        for query in raw_queries:
-            cleaned = ' '.join(query.strip().split())
-            if cleaned: 
-                queries.append(cleaned + ';') '''
     queries = get_queries(args.query)
 
     info_path = os.path.join(INFO_OUTPUT, "info.txt")
