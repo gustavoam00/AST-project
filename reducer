@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import argparse, subprocess, os
-from src.vertical_reduction import trace_context, vertical_delta_debug, reduce_temp_tables
+from src.vertical_reduction import trace_context, vertical_delta_debug, reduce_temp_tables, compress_insert
 from src.horizontal_reduction import cleaning_pipeline, delta_debug, space_it_out, cleaning_by_query, aggressive_cleaning_pipeline
 from src.initial_test import initial_run_test
 from src.config import INFO_OUTPUT, TEMP_OUTPUT
@@ -100,7 +100,7 @@ def main():
         else:
             save_query = cleaned_queries
             print("FIRST CLEANED AGAIN SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
-            
+    
     # aggress_cleaned_queries = [aggressive_cleaning_pipeline(q) for q in save_query]
     # write_queries(reduced_path, aggress_cleaned_queries)
     # if not run_test_script(args.test, reduced_path):
@@ -136,6 +136,16 @@ def main():
         else:
             save_query = delta_queries
             print("SECOND VERTICAL DELTA DEBUG SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+
+    cleaned_queries = compress_insert(save_query)
+    write_queries(reduced_path, cleaned_queries)
+    if not run_test_script(args.test, reduced_path):
+        write_queries(reduced_path, save_query)
+        print("INSERT COMPRESSION FAILED:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+    else:
+        save_query = cleaned_queries
+        print("INSERT COMPRESSION SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+
 
     if len(flatten([q.split(" ") for q in save_query])) < 250:
         delta_queries = delta_debug(save_query, lambda q: run_test_script(args.test, reduced_path, q))
