@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, subprocess, os
+import argparse, subprocess, os, time
 from src.vertical_reduction import trace_context, vertical_delta_debug, reduce_temp_tables, compress_insert
 from src.horizontal_reduction import cleaning_pipeline, delta_debug, space_it_out, cleaning_by_query, aggressive_cleaning_pipeline
 from src.initial_test import initial_run_test
@@ -45,6 +45,8 @@ def main():
     os.makedirs(TEMP_OUTPUT, exist_ok=True)
 
     # REDUCTION
+    start = time.time()
+    first_time = start
     queries = get_queries(original_path)
     save_query = [space_it_out(q) for q in queries]
 
@@ -55,19 +57,26 @@ def main():
         f.write(" ".join(msg[0].split()).strip() + "\n")
         f.write(" ".join(msg[1].split()).strip() + "\n")
         f.writelines(line + "\n" for line in errlist)
-    print("INITIAL RUN:", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+    end = time.time()
+    init_query = len(save_query)
+    init_token = len(flatten([q.split(" ") for q in save_query]))
+    print(f"INITIAL RUN ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     
     # TRACE CONTEXT REDUCTION
+    start = time.time()
     setup_queries, context_queries, bug_query = trace_context(save_query, index, errlist, msg)
     write_queries(reduced_path, setup_queries + context_queries + bug_query)
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, save_query)
-        print("TRACE CONTEXT FAILED:", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"FAILED: TRACE CONTEXT ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = setup_queries + context_queries + bug_query
-        print("TRACE CONTEXT SUCCESS:", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"SUCCESS: TRACE CONTEXT ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     # FIRST DELTA DEBUG REDUCTION
+    start = time.time()
     if len(queries) > 50:
         delta_queries = setup_queries + vertical_delta_debug(setup_queries, context_queries, bug_query, lambda q: run_test_script(args.test, reduced_path, q), n=2) + bug_query
     else:
@@ -75,32 +84,40 @@ def main():
     write_queries(reduced_path, delta_queries)
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, save_query)
-        print("FIRST VERTICAL DELTA DEBUG FAILED:", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"FAILED: FIRST VERTICAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = delta_queries
-        print("FIRST VERTICAL DELTA DEBUG SUCCESS:", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"SUCCESS: FIRST VERTICAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     # QUERY CLEAN UP REDUCTION
+    start = time.time()
     cleaned_queries = [cleaning_pipeline(q) for q in save_query]
     write_queries(reduced_path, cleaned_queries)
     cleaned_fail = False
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, save_query)
         cleaned_fail = True
-        print("FIRST CLEANED FAILED:", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"FAILED: FIRST CLEANED ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = cleaned_queries
-        print("FIRST CLEANED SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"SUCCESS: FIRST CLEANED ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
         
     if cleaned_fail and len(save_query) <= 10: #tries to clean line by line, 10 line check for now just in case
+        start = time.time()
         cleaned_queries = cleaning_by_query(save_query,  lambda q: run_test_script(args.test, reduced_path, q))
         write_queries(reduced_path, cleaned_queries)
         if not run_test_script(args.test, reduced_path):
             write_queries(reduced_path, save_query)
-            print("FIRST CLEANED AGAIN FAILED:", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+            end = time.time()
+            print(f"FAILED: FIRST CLEANED AGAIN ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
         else:
             save_query = cleaned_queries
-            print("FIRST CLEANED AGAIN SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+            end = time.time()
+            print(f"SUCCESS: FIRST CLEANED AGAIN ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     
     # aggress_cleaned_queries = [aggressive_cleaning_pipeline(q) for q in save_query]
     # write_queries(reduced_path, aggress_cleaned_queries)
@@ -113,6 +130,7 @@ def main():
     #     print("SECOND CLEANED SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     # CLEANING, TODO: add more?
+    start = time.time()
     cleaned_queries: list[str] = []
     for query in save_query:
         if query.startswith("WITH"):
@@ -122,54 +140,72 @@ def main():
     write_queries(reduced_path, cleaned_queries)
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, save_query)
-        print("REDUCTION FAILED:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"FAILED: REDUCTION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = cleaned_queries
-        print("REDUCTION SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"SUCCESS: REDUCTION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     # SECOND DELTA DEBUG REDUCTION
     if len(queries) > 50 and len(save_query) < 30:
+        start = time.time()
         delta_queries = vertical_delta_debug([], save_query, [], lambda q: run_test_script(args.test, reduced_path, q), n=2)
         write_queries(reduced_path, delta_queries)
         if not run_test_script(args.test, reduced_path):
             write_queries(reduced_path, save_query)
-            print("SECOND VERTICAL DELTA DEBUG FAILED:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+            end = time.time()
+            print(f"FAILED: SECOND VERTICAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
         else:
             save_query = delta_queries
-            print("SECOND VERTICAL DELTA DEBUG SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+            end = time.time()
+            print(f"SUCCESS: SECOND VERTICAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
+    start = time.time()
     cleaned_queries = compress_insert(save_query)
     write_queries(reduced_path, cleaned_queries)
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, save_query)
-        print("INSERT COMPRESSION FAILED:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"FAILED: INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = cleaned_queries
-        print("INSERT COMPRESSION SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"SUCCESS: INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
 
     if len(flatten([q.split(" ") for q in save_query])) < 250:
+        start = time.time()
         delta_queries = delta_debug(save_query, lambda q: run_test_script(args.test, reduced_path, q))
         write_queries(reduced_path, delta_queries)
         if not run_test_script(args.test, reduced_path):
             write_queries(reduced_path, save_query)
-            print("THIRD DELTA DEBUG FAILED:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+            end = time.time()
+            print(f"FAILED: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
         else:
             save_query = delta_queries
-            print("THIRD DELTA DEBUG SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+            end = time.time()
+            print(f"SUCCESS: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     # TRACE CONTEXT REDUCTION
+    start = time.time()
     setup_queries, context_queries, bug_query = trace_context(save_query, len(save_query)-1, errlist, msg)
     write_queries(reduced_path, setup_queries + context_queries + bug_query)
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, save_query)
-        print("TRACE CONTEXT FAILED:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"FAILED: TRACE CONTEXT ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = setup_queries + context_queries + bug_query
-        print("TRACE CONTEXT SUCCESS:", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        end = time.time()
+        print(f"SUCCESS: TRACE CONTEXT ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     # FINAL RESULT FOR DEBUGGING
     run_test_script(args.test, reduced_path)
+    end_time = time.time()
+    print(f"TOTAL RUN TIME: {end_time - first_time:.3f}s")
+    print(f"FINAL NUMBER OF QUERIES: {len(save_query)} from {init_query}")
+    print(f"FINAL NUMBER OF TOKENS: {len(flatten([q.split(' ') for q in save_query]))} from {init_token}")
 
 # def main_test():
 #     parser = argparse.ArgumentParser(description="SQL Query Reducer")
