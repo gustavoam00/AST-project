@@ -32,10 +32,8 @@ def main():
 
     # PATH SETUP
     original_path = str(args.query)
-    default_reduced_path = args.test
-    test_case_path = os.environ.get("TEST_CASE_LOCATION", default_reduced_path)
-    test_case_dir = os.path.dirname(test_case_path) if test_case_path.endswith(".sh") else os.path.abspath(test_case_path)
-    reduced_path = os.path.join(test_case_dir, "query.sql")
+    default_reduced_path = os.path.join(os.path.dirname(args.test), "query.sql")
+    reduced_path  = os.environ.get("TEST_CASE_LOCATION", default_reduced_path)
 
     info_path = os.path.join(INFO_OUTPUT, "info.txt")
     os.makedirs(os.path.dirname(info_path), exist_ok=True)
