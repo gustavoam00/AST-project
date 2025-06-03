@@ -130,7 +130,7 @@ def main():
         end = time.time()
         print(f"SUCCESS: CASE REDUCTION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     
-    # CLEANING, TODO: add more?
+    # CLEANING
     start = time.time()
     cleaned_queries: list[str] = []
     for query in save_query:
@@ -171,11 +171,11 @@ def main():
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, save_query)
         end = time.time()
-        print(f"FAILED: INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        print(f"FAILED: FIRST INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = cleaned_queries
         end = time.time()
-        print(f"SUCCESS: INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        print(f"SUCCESS: FIRST INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     
     #COLUMN REMOVER
     start = time.time()
@@ -184,11 +184,11 @@ def main():
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, min_cols_queries)
         end = time.time()
-        print(f"FAILED: COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        print(f"FAILED: FIRST COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = min_cols_queries
         end = time.time()
-        print(f"SUCCESS: COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        print(f"SUCCESS: FIRST COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     #HORIZONTAL DELTA DEBUG
     start = time.time()
@@ -216,33 +216,7 @@ def main():
         end = time.time()
         print(f"SUCCESS: SLIDING WINDOW DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     
-    
-    if len(flatten([q.split(" ") for q in save_query])) < 250:
-        start = time.time()
-        delta_queries = delta_debug(save_query, lambda q: run_test_script(args.test, reduced_path, q), id=1)
-        write_queries(reduced_path, delta_queries)
-        if not run_test_script(args.test, reduced_path):
-            write_queries(reduced_path, save_query)
-            end = time.time()
-            print(f"FAILED: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
-        else:
-            save_query = delta_queries
-            end = time.time()
-            print(f"SUCCESS: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
-    else:
-        start = time.time()
-        delta_queries = selective_delta_debug(save_query, lambda q: run_test_script(args.test, reduced_path, q), id=1)
-        write_queries(reduced_path, delta_queries)
-        if not run_test_script(args.test, reduced_path):
-            write_queries(reduced_path, save_query)
-            end = time.time()
-            print(f"FAILED: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
-        else:
-            save_query = delta_queries
-            end = time.time()
-            print(f"SUCCESS: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
-         
-            
+    #PARENTHESIS REMOVAL
     start = time.time()
     paren_queries = try_remove_parens(save_query, lambda q: run_test_script(args.test, reduced_path, q))
     write_queries(reduced_path, paren_queries)
@@ -262,11 +236,11 @@ def main():
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, save_query)
         end = time.time()
-        print(f"FAILED: INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        print(f"FAILED: SECOND INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = cleaned_queries
         end = time.time()
-        print(f"SUCCESS: INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        print(f"SUCCESS: SECOND INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     
     start = time.time()
     min_cols_queries = minimize_columns(save_query, lambda q: run_test_script(args.test, reduced_path, q))
@@ -274,12 +248,40 @@ def main():
     if not run_test_script(args.test, reduced_path):
         write_queries(reduced_path, min_cols_queries)
         end = time.time()
-        print(f"FAILED: COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        print(f"FAILED: SECOND COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     else:
         save_query = min_cols_queries
         end = time.time()
-        print(f"SUCCESS: COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        print(f"SUCCESS: SECOND COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
+    # QUERY CLEAN UP REDUCTION 2nd
+    start = time.time()
+    cleaned_queries = [cleaning_pipeline(q) for q in save_query]
+    write_queries(reduced_path, cleaned_queries)
+    cleaned_fail = False
+    if not run_test_script(args.test, reduced_path):
+        write_queries(reduced_path, save_query)
+        cleaned_fail = True
+        end = time.time()
+        print(f"FAILED: SECOND CLEANED ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+    else:
+        save_query = cleaned_queries
+        end = time.time()
+        print(f"SUCCESS: SECOND CLEANED ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        
+    if cleaned_fail and len(save_query) <= 10: #tries to clean line by line, 10 line check for now just in case
+        start = time.time()
+        cleaned_queries = cleaning_by_query(save_query,  lambda q: run_test_script(args.test, reduced_path, q))
+        write_queries(reduced_path, cleaned_queries)
+        if not run_test_script(args.test, reduced_path):
+            write_queries(reduced_path, save_query)
+            end = time.time()
+            print(f"FAILED: SECOND CLEANED AGAIN ({end - start:.3f}s):", len(save_query), "(number of queries)", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        else:
+            save_query = cleaned_queries
+            end = time.time()
+            print(f"SUCCESS: SECOND CLEANED AGAIN ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+            
     # TRACE CONTEXT REDUCTION
     start = time.time()
     setup_queries, context_queries, bug_query = trace_context(save_query, len(save_query)-1, errlist, msg)
