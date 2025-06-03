@@ -219,9 +219,9 @@ def compress_insert(queries: list[str]) -> list[str]:
     inserts_by_table: dict[str, list[str]] = defaultdict(list)
     output_lines: list[str] = []
     table_first_line_index: dict[str, int] = {}
-    insert_pattern = re.compile(r"INSERT\s+INTO\s+(\w+)\s+VALUES\s*\((.*)\)\s*;")
+    insert_pattern = re.compile(r"INSERT\s+INTO\s+(\w+)(?:\s*\([^)]+\))?\s+VALUES\s*\((.*)\)\s*;")
 
-    for i, line in enumerate(queries):
+    for line in queries:
         stripped = line.strip()
         match = insert_pattern.match(stripped)
         if match:
