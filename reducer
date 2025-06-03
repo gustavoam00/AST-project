@@ -216,7 +216,33 @@ def main():
         end = time.time()
         print(f"SUCCESS: SLIDING WINDOW DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
     
-    # PARENTHESIS REMOVAL        
+    
+    if len(flatten([q.split(" ") for q in save_query])) < 250:
+        start = time.time()
+        delta_queries = delta_debug(save_query, lambda q: run_test_script(args.test, reduced_path, q), id=1)
+        write_queries(reduced_path, delta_queries)
+        if not run_test_script(args.test, reduced_path):
+            write_queries(reduced_path, save_query)
+            end = time.time()
+            print(f"FAILED: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        else:
+            save_query = delta_queries
+            end = time.time()
+            print(f"SUCCESS: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+    else:
+        start = time.time()
+        delta_queries = selective_delta_debug(save_query, lambda q: run_test_script(args.test, reduced_path, q), id=1)
+        write_queries(reduced_path, delta_queries)
+        if not run_test_script(args.test, reduced_path):
+            write_queries(reduced_path, save_query)
+            end = time.time()
+            print(f"FAILED: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+        else:
+            save_query = delta_queries
+            end = time.time()
+            print(f"SUCCESS: THIRD HORIZONTAL DELTA DEBUG ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+         
+            
     start = time.time()
     paren_queries = try_remove_parens(save_query, lambda q: run_test_script(args.test, reduced_path, q))
     write_queries(reduced_path, paren_queries)
@@ -228,6 +254,31 @@ def main():
         save_query = paren_queries
         end = time.time()
         print(f"SUCCESS: PARENTHESIS REMOVAL ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+
+    start = time.time()
+    cleaned_queries = compress_insert(save_query)
+    cleaned_queries = [space_it_out(q) for q in cleaned_queries]
+    write_queries(reduced_path, cleaned_queries)
+    if not run_test_script(args.test, reduced_path):
+        write_queries(reduced_path, save_query)
+        end = time.time()
+        print(f"FAILED: INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+    else:
+        save_query = cleaned_queries
+        end = time.time()
+        print(f"SUCCESS: INSERT COMPRESSION ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+    
+    start = time.time()
+    min_cols_queries = minimize_columns(save_query, lambda q: run_test_script(args.test, reduced_path, q))
+    write_queries(reduced_path, min_cols_queries)
+    if not run_test_script(args.test, reduced_path):
+        write_queries(reduced_path, min_cols_queries)
+        end = time.time()
+        print(f"FAILED: COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
+    else:
+        save_query = min_cols_queries
+        end = time.time()
+        print(f"SUCCESS: COLUMN MINIMIZER ({end - start:.3f}s):", len(save_query), "(number of queries),", len(flatten([q.split(" ") for q in save_query])), "(number of tokens)")
 
     # TRACE CONTEXT REDUCTION
     start = time.time()
