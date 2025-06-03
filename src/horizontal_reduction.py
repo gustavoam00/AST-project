@@ -13,6 +13,9 @@ KEYWORDS = [
     ]
             
 def simplify_sql(query):
+    """
+    Evaluates all logic and math expressions to simplify them as much as possible
+    """
     def try_eval_math(expr):
         try:
             expr = expr.replace(' ', '')
@@ -89,45 +92,49 @@ def simplify_sql(query):
     return query
 
 
-def get_table_cols(create_stmt):
-    create_stmt = create_stmt.strip().strip(';')
-    match = re.match(r"CREATE TABLE\s+(\w+)\s*\((.*?)\)", create_stmt, re.IGNORECASE | re.DOTALL)
-    if not match:
-        return {}
-    table_name = match.group(1)
-    columns_str = match.group(2)
-    columns = [line.strip().split()[0] for line in columns_str.split(',') if line.strip()]
-    return {table_name: columns}
-
-def get_all_cols(query_list):
-    cols = {}
-    for stmt in query_list:
-        if stmt.strip().upper().startswith("CREATE TABLE"):
-            cols.update(get_table_cols(stmt))
-    return cols
-
-def transform_insert_statements(query_list):
-    table_columns = get_all_cols(query_list)
-    updated_sql = []
-
-    insert_regex = re.compile(r"INSERT INTO\s+(\w+)\s+VALUES", re.IGNORECASE)
-
-    for stmt in query_list:
-        match = insert_regex.match(stmt.strip())
-        if match:
-            table_name = match.group(1)
-            if table_name in table_columns:
-                columns_str = ' , '.join(table_columns[table_name])
-                stmt = re.sub(
-                    r"(INSERT INTO\s+" + re.escape(table_name) + r")\s+VALUES",
-                    r"\1 ( " + columns_str + r" ) VALUES",
-                    stmt,
-                    flags=re.IGNORECASE
-                )
-        updated_sql.append(stmt)
-    return updated_sql
-
 def minimize_columns(query_list, test):
+    """
+    Tries to eliminate cols ffrom inside insert statements
+    """
+    def transform_insert_statements(query_list):
+        """
+        Helper transforms Insert without cols to ahve cols
+        """
+        def get_all_cols(query_list):
+            def get_table_cols(create_stmt):
+                create_stmt = create_stmt.strip().strip(';')
+                match = re.match(r"CREATE TABLE\s+(\w+)\s*\((.*?)\)", create_stmt, re.IGNORECASE | re.DOTALL)
+                if not match:
+                    return {}
+                table_name = match.group(1)
+                columns_str = match.group(2)
+                columns = [line.strip().split()[0] for line in columns_str.split(',') if line.strip()]
+                return {table_name: columns}
+            cols = {}
+            for stmt in query_list:
+                if stmt.strip().upper().startswith("CREATE TABLE"):
+                    cols.update(get_table_cols(stmt))
+            return cols
+        
+        table_columns = get_all_cols(query_list)
+        updated_sql = []
+
+        insert_regex = re.compile(r"INSERT INTO\s+(\w+)\s+VALUES", re.IGNORECASE)
+
+        for stmt in query_list:
+            match = insert_regex.match(stmt.strip())
+            if match:
+                table_name = match.group(1)
+                if table_name in table_columns:
+                    columns_str = ' , '.join(table_columns[table_name])
+                    stmt = re.sub(
+                        r"(INSERT INTO\s+" + re.escape(table_name) + r")\s+VALUES",
+                        r"\1 ( " + columns_str + r" ) VALUES",
+                        stmt,
+                        flags=re.IGNORECASE
+                    )
+            updated_sql.append(stmt)
+        return updated_sql
     modified_sql = transform_insert_statements(query_list)
     if not test(modified_sql):
         return query_list
@@ -168,8 +175,11 @@ def minimize_columns(query_list, test):
     return modified_sql
 
 
-def strip_column_types(sql_text):
-    def process_create_table_block(match):
+def strip_column_types(sql):
+    """
+    Strip all col type denitions in create tables
+    """
+    def remove_types(match):
         header = match.group(1)
         body = match.group(2)
 
@@ -189,7 +199,7 @@ def strip_column_types(sql_text):
         if current:
             columns.append(current.strip())
 
-        TYPE_PATTERN = re.compile(r"^(INTEGER|TEXT|REAL|BOOLEAN|BLOB|NUMERIC|CHARACTER|BIGINT|INT|MEDIUMINT|NCHAR|DOUBLE|CLOB|DATE|UNSIGNED|BIG|PRECISION)$", re.IGNORECASE)
+        TYPE_PATTERN = re.compile(r"^(INTEGER|TEXT|REAL|BOOLEAN|BLOB|NUMERIC|CHARACTER|BIGINT|INT|MEDIUMINT|NCHAR|DOUBLE|CLOB|DATE|UNSIGNED|BIG|PRECISION|JSON)$", re.IGNORECASE)
 
         stripped_columns = []
         for col in columns:
@@ -215,65 +225,73 @@ def strip_column_types(sql_text):
         re.IGNORECASE | re.DOTALL
     )
 
-    return pattern.sub(process_create_table_block, sql_text)
+    return pattern.sub(remove_types, sql)
 
-def strip_select(query): #group and order by maybe possible, more difficult
-    query = re.sub(r'LIMIT\s+\d+', '', query, flags=re.IGNORECASE)
-    query = re.sub(r'OFFSET\s+\d+', '', query, flags=re.IGNORECASE)
-    query = re.sub(r'\bDISTINCT\b', '', query, flags=re.IGNORECASE)
-    return query
+def strip_select(sql): #group and order by maybe possible, more difficult
+    """
+    Simplify select a bit with parts that are not error prone
+    """
+    sql = re.sub(r'LIMIT\s+\d+', '', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'OFFSET\s+\d+', '', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'\bDISTINCT\b', '', sql, flags=re.IGNORECASE)
+    return sql
 
-def remove_case(query):
-    def simplify_case(case_expr):
-        then_values = re.findall(r'THEN\s+(.*?)(?=\s+WHEN|\s+ELSE|\s+END)', case_expr, re.IGNORECASE | re.DOTALL)
-        else_match = re.search(r'ELSE\s+(.*?)(?=\s+END)', case_expr, re.IGNORECASE | re.DOTALL)
-
-        if 'NULL' in case_expr.upper():
-            return 'NULL'
-        elif else_match:
-            return else_match.group(1).strip()
-        elif then_values:
-            return then_values[0].strip()
-        else:
-            return 'NULL'
-
-    case_pattern = re.compile(r'CASE\s+.*?\s+END', re.IGNORECASE | re.DOTALL)
+def simplify_nullif(sql):
+    """
+    Evaluates simple NULLIF functions where both arguments are literals or simple values.
+    """
+    pattern = re.compile(r'NULLIF\s*\(\s*([^\(\),]+?)\s*,\s*([^\(\),]+?)\s*\)', re.IGNORECASE)
 
     def replacer(match):
-        case_expr = match.group()
-        return simplify_case(case_expr)
+        val1 = match.group(1).strip()
+        val2 = match.group(2).strip()
+        return 'NULL' if val1 == val2 else val1
 
-    return re.sub(case_pattern, replacer, query)
+    return pattern.sub(replacer, sql)
 
 def clean_semicolons(sql):
+    """
+    Remove doubled semicolons
+    """
     sql = re.sub(r'(;\s*){2,}', '; ', sql)
     return sql.strip()
 
-def remove_nested_parentheses(s):
+def remove_nested_parentheses(sql):
+    """
+    Remove doubled parenthesis
+    """
     pattern = re.compile(r'\(\s*\(([^()]*?)\)\s*\)')
     prev = None
-    while prev != s:
-        prev = s
-        s = pattern.sub(r'(\1)', s)
-    return s
+    while prev != sql:
+        prev = sql
+        sql= pattern.sub(r'(\1)', sql)
+    return sql.strip()
 
-def remove_functions(s):
-    s = re.sub(r'CAST\s*\(\s*(.*?)\s+AS\s+[^)]+\)', r'\1', s, flags=re.IGNORECASE)
-    s = re.sub(r'TYPEOF\s*\(\s*(.*?)\s*\)', r'\1', s, flags=re.IGNORECASE)
-    s = re.sub(r'QUOTE\s*\(\s*(.*?)\s*\)', r'\1', s, flags=re.IGNORECASE)
-    return s.strip()
+def remove_functions(sql):
+    """
+    Simplify values that some functions represent
+    """
+    sql = re.sub(r'CAST\s*\(\s*(.*?)\s+AS\s+[^)]+\)', r'\1', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'TYPEOF\s*\(\s*(.*?)\s*\)', r'\1', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'QUOTE\s*\(\s*(.*?)\s*\)', r'\1', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'UNLIKELY\s*\(\s*(.*?)\s*\)', r'\1', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'LIKELY\s*\(\s*(.*?)\s*\)', r'\1', sql, flags=re.IGNORECASE)
+    return sql.strip()
 
-def sanitize_string_literals(s):
+def sanitize_string_literals(sql):
+    """
+    Remove spaces inside strings ''
+    """
     def clean_match(match):
         inner = match.group(1)
         cleaned = inner.replace('(', '').replace(')', '').replace(',', '').replace(' ', '')
         return f"'{cleaned}'"
-    return re.sub(r"'(.*?)'", clean_match, s)
-
-def remove_useless_parentheses(s):
-    return
+    return re.sub(r"'(.*?)'", clean_match, sql)
 
 def space_it_out(query):
+    """
+    Separates all tokens in a query
+    """
     query = query.replace('(', ' ( ').replace(')', ' ) ')
     query = query.replace(';', ' ; ').replace(',', ' , ')
     query = re.sub(r'\s+', ' ', query).strip()
@@ -285,6 +303,9 @@ def space_it_out(query):
     return query
 
 def cleaning_pipeline(query):
+    """
+    Applies all cleaning fucnitons to query
+    """
     new_query = space_it_out(query)
     new_query = clean_semicolons(new_query)
     new_query = simplify_sql(new_query)
@@ -292,18 +313,15 @@ def cleaning_pipeline(query):
     new_query = strip_column_types(new_query)
     new_query = strip_select(new_query)
     new_query = remove_functions(new_query)
-    # new_query = remove_case(new_query)
+    new_query = simplify_nullif(new_query)
     new_query = sanitize_string_literals(new_query)
     new_query = space_it_out(new_query)
     return new_query
 
-def aggressive_cleaning_pipeline(query):
-    new_query = cleaning_pipeline(query)
-    new_query = remove_useless_parentheses(new_query)
-    new_query = space_it_out(new_query)
-    return new_query
-
 def cleaning_by_query(query_list, test):
+    """
+    Used if cleaning all doesn't work, clean only the queries that work
+    """
     result = []
     for i in range(len(query_list)):
         query = query_list[i]
@@ -314,7 +332,58 @@ def cleaning_by_query(query_list, test):
             result.append(query)
     return result
 
+def try_simplify_cases(queries, test):
+    """
+    Tries to simplify all case statements to be a single value, wherever possible
+    """
+    def simplify_case_expr(case_expr):
+        then_values = re.findall(r'\bTHEN\s+(.*?)(?=\s+WHEN|\s+ELSE|\s+END)', case_expr, re.IGNORECASE | re.DOTALL)
+        else_match = re.search(r'\bELSE\s+(.*?)(?=\s+END)', case_expr, re.IGNORECASE | re.DOTALL)
+
+        values = then_values[:]
+        if else_match:
+            values.append(else_match.group(1).strip())
+
+        for val in values:
+            if val.strip().upper() == 'NULL':
+                return 'NULL'
+
+        return values[0].strip() if values else 'NULL'
+    
+    minimized_queries = []
+
+    for i, q in enumerate(queries):
+        tokens = q.split()
+        simplified_tokens = tokens[:]
+        positions = []
+
+        stack = []
+        for idx, token in enumerate(tokens):
+            if token.upper() == 'CASE':
+                stack.append(idx)
+            elif token.upper() == 'END' and stack:
+                start = stack.pop()
+                positions.append((start, idx))
+
+        positions = sorted(positions, key=lambda x: x[0], reverse=True)
+
+        for start, end in positions:
+            case_tokens = simplified_tokens[start:end + 1]
+            case_str = ' '.join(case_tokens)
+            simplified_val = simplify_case_expr(case_str)
+
+            new_tokens = simplified_tokens[:start] + [simplified_val] + simplified_tokens[end + 1:]
+            if check_query_tokens(new_tokens, i, minimized_queries, queries, test):
+                simplified_tokens = new_tokens
+
+        minimized_queries.append(' '.join(simplified_tokens))
+
+    return minimized_queries
+
 def try_remove_parens(queries, test):
+    """
+    Tries to remove parenthesis that are not needed 
+    """
     minimized_queries = []
 
     for i, q in enumerate(queries):
@@ -345,6 +414,7 @@ def try_remove_parens(queries, test):
     return minimized_queries
 
 
+### DELTA DEBUGGING
 def check_query_tokens(new_tokens, idx, minimized_so_far, queries, test):
     rebuilt = []
     rebuilt.extend(minimized_so_far)
@@ -353,92 +423,40 @@ def check_query_tokens(new_tokens, idx, minimized_so_far, queries, test):
 
     return test(rebuilt)
 
-def delta_debug(queries, test, id = 1):
+def horizontal_delta_debug(queries, test, id = 1):
     minimized_queries = []
 
     for i, q in enumerate(queries):
         tokens = q.split()
-        if id == 0:
-            reduced_tokens = ddmin(
-                tokens,
-                lambda new_tokens: check_query_tokens(new_tokens, i, minimized_queries, queries, test)
-            )
-        elif id == 1:
-            reduced_tokens = ddmin2(
-                tokens,
-                lambda new_tokens: check_query_tokens(new_tokens, i, minimized_queries, queries, test)
-            )
-        else:
-            reduced_tokens = ddmin3(
-                tokens,
-                lambda new_tokens: check_query_tokens(new_tokens, i, minimized_queries, queries, test)
-            )
-        if reduced_tokens:
-            minimized_queries.append(' '.join(reduced_tokens))
-
-    return minimized_queries
-
-def selective_delta_debug(queries, test, id = 1, skip_prefixes=("INSERT", "REPLACE")):
-    minimized_queries = []
-
-    for i, q in enumerate(queries):
-
-        if any(q.startswith(prefix.upper()) for prefix in skip_prefixes):
-            minimized_queries.append(q)
-            continue
-
-        tokens = q.split()
-        if len(tokens) > 200:
+        tokens = tokens[:-1]
+        if len(tokens) > 180:
             minimized_queries.append(q)
             continue
         
         if id == 0:
-            reduced_tokens = ddmin(
+            reduced_tokens = delta_debug_extra(
                 tokens,
-                lambda new_tokens: check_query_tokens(new_tokens, i, minimized_queries, queries, test)
+                lambda new_tokens: check_query_tokens(new_tokens+[';'], i, minimized_queries, queries, test)
             )
         elif id == 1:
-            reduced_tokens = ddmin2(
+            reduced_tokens = delta_debug(
                 tokens,
-                lambda new_tokens: check_query_tokens(new_tokens, i, minimized_queries, queries, test)
+                lambda new_tokens: check_query_tokens(new_tokens+[';'], i, minimized_queries, queries, test)
             )
         else:
-            reduced_tokens = ddmin3(
+            reduced_tokens = sliding_window(
                 tokens,
-                lambda new_tokens: check_query_tokens(new_tokens, i, minimized_queries, queries, test)
+                lambda new_tokens: check_query_tokens(new_tokens+[';'], i, minimized_queries, queries, test)
             )
         if reduced_tokens:
-            minimized_queries.append(' '.join(reduced_tokens))
+            minimized_queries.append(' '.join(reduced_tokens+[';']))
 
     return minimized_queries
 
-def ddmin(tokens, test):
-    n = 2
-
-    while True:
-        chunk_size = math.floor(len(tokens) / n)
-        if chunk_size == 0:
-            break
-
-        subset_found = False
-
-        for i in range(n):
-            start = i * chunk_size
-            end = start + chunk_size if i < n - 1 else len(tokens)
-            reduced = tokens[:start] + tokens[end:]
-            if test(reduced):
-                tokens = reduced
-                n = max(n - 1, 2)
-                subset_found = True
-
-        if not subset_found:
-            if n >= len(tokens):
-                break
-            n = min(n * 2, len(tokens))
-
-    return tokens
-
-def ddmin2(tokens, test):
+def delta_debug(tokens, test):
+    """
+    Classic Delta Debugging
+    """
     length = len(tokens)
     chunk_size = max(length // 2, 1)
 
@@ -458,8 +476,38 @@ def ddmin2(tokens, test):
 
     return tokens
 
-def ddmin3(tokens, test):
-    chunk_size = 3
+def delta_debug_extra(tokens, test):
+    """
+    Delta Debugging, but,
+    Restarts if tokens removed to try to simplify again
+    """
+    n = 2
+    while True:
+        chunk_size = math.floor(len(tokens) / n)
+        if chunk_size == 0:
+            break
+        subset_found = False
+        for i in range(n):
+            start = i * chunk_size
+            end = start + chunk_size if i < n - 1 else len(tokens)
+            reduced = tokens[:start] + tokens[end:]
+            if test(reduced):
+                tokens = reduced
+                n = max(n - 1, 2)
+                subset_found = True
+
+        if not subset_found:
+            if n >= len(tokens):
+                break
+            n = min(n * 2, len(tokens))
+
+    return tokens
+
+def sliding_window(tokens, test):
+    """
+    Sets a chunk size as window ans slides through token, attempting to remove them.
+    """
+    chunk_size = 4 if len(tokens) > 30 else 3
 
     while chunk_size >= 1:
         i = 0
@@ -478,15 +526,10 @@ def ddmin3(tokens, test):
 
     return tokens
 
-    
 
 def main():
-    query = "INSERT INTO t5 ( c0 , c1 , c2 ) VALUES ( '-u!.j!p2P rZ' , -7608565 , 'etWPioGcJ-r9' ) , ( 'aFGxdW5PRFhKFE' , -2444631 , 'H4 , C0XvPP8W8Yq' ) , ( 'aZbvf3I7q , AKk' , -1947983 , '?l , nL9H' ) , ( 'N1L0J1RZsIbuJ0!g' , 923750 , 'zo2oR' ) , ( '_JB5-Z!' , -2877915 , 'dD0J0N-77?0Uo1e , ' ) , ( 'Q_YOxU o' , 4636258 , 'Z_SRJld5gVFP' ) , ( 'mNlEgKF2!' , -584367 , 'wx_TvWXV' ) , ( 'CuA1emC-R' , 1509128 , 'MDhbR RClrvKHOzN' ) , ( 'mFCgpHaC-_' , 3353807 , 'usA8w_mSpY?_ TL' ) , ( 'v , v77liG' , 4349642 , 'DXPmTZ.P2!Kx' ) , ( 'crx8flX , g02DPmA' , -1990450 , '8GrbC9U_7Xhk' ) , ( 'G-.Xe7' , 684380 , 'UrnRAA2g3VUV3 ' ) , ( 'Q9AVRo28eIMSq' , 3937253 , '9l4xWb.nvV?BgZ4c' ) , ( '9pYLxycVQp6B' , 2005450 , ' , ?!lycuysWJ' ) , ( 'tHF9J0B9' , -5586608 , 'z.jePZ7T-' ) , ( 'FawzS_iRS82M' , -5313409 , 'JqWLoScb' ) , ( '20EMpwWKwVfC8' , 7771574 , 'e65r1Y' ) , ( 'Tz_CJnPo7 , BwVipSd' , 2940263 , 'QtbpQ?E1w4Z.HCxWFM!' ) , ( 'kya9nkIDJqikr9' , 6088621 , 'NuK?YToc7mCYQ6FBZo' ) , ( 'j_jxija' , -2685025 , ' QedKsQ_yLuMR.Y' ) , ( '05ytv3iYVR4iSWbaJ3da' , -6561348 , 'sJG9T0M' ) , ( 'z2p_pAo_DI8FfutF0' , -1470225 , 'ZhJicQ' ) , ( 'de GCJAmNWk1do7XAN?J' , 6645446 , 'Z_WaSBSPcXmzWvDYb!k' ) , ( 'LSYOD5bxRq3.' , 2778922 , 'vbB6VDNCblDJ5D!fLvf' ) , ( 'KUJR-z6b72tA , 5j' , 3359107 , '?1mic' ) , ( 'bT-Nxqsh' , -1028521 , 'g2SsLta , KC fnlM!EITo' ) , ( '?m9n_o' , -5416584 , 'o2QDi5yH!b' ) , ( 'Dr2T2W2' , -8072188 , 'Vut!Zi4?' ) , ( 'tfU3oMigZU1ZvvCdAmU6' , 5315105 , 't-Vazhk' ) , ( 'xXF-q2Re' , -8369543 , 'fJ8_HW7Lf' ) , ( 'tD5dr NbhE' , 83100 , '2!mmVhgBRvs' ) , ( '5QC6bWkkO?i' , 1579836 , 'LH-Jz G' ) , ( '!A1rZ5g!-HGDXSvct' , 930168 , 'yIioLV' ) , ( 'mKUBXhc6m3D- cn' , -901863 , 'pnscE' ) , ( 'Z43 , OzKdAwr' , 8124048 , '-p0kCOmOi4iLdqHsqKS' ) , ( 'dthFdZTo' , 5302984 , 'M!x_f1QuMqSo' ) , ( '3E75kVioit , ' , 3912383 , 'UiE5FLuqN6' ) , ( 'V?KxKy2FWQJ7deO!sb?f' , 5112056 , 'LRsV3glE4Y?' ) , ( 'MV6H7EW , 4-Q' , 500598 , 'iKbYn4mYe.mz6H!OfRi' ) , ( 'wZfDq2b1t8' , -5392615 , '?XZp.GNkqxYR4' ) , ( 'gcam8ECh9GLNzzO?' , 7774759 , 'MU3s2fK' ) , ( 'dG8_2O__cSqB.3' , -5546456 , 'z2 , o9Fp.q6fRfJ' ) , ( '7tiG-YFjdHP9D9' , -7571907 , 'Zi9ZSyH5cf' ) , ( 'mgpktsi4IpsLnYx.E' , -4702394 , 'b?S1ByB' ) ;"
-    
-    queries = [q + ";" for q  in query.split(";")]
-    new = transform_insert_statements(queries)
-    for q in new:
-        print(q)
+    sql = "INSERT OR ABORT INTO tbl_wqiwo (rcol_eitnk, tcol_wskpp, tcol_yqthy) VALUES (1.0, 11960.180152676927, CAST('v_citjr' GLOB 'rAag' AS TEXT)), (CAST(UNLIKELY(- (NULL)) / NULLIF(0,0) AS REAL), 3802.849483805112, 1), (CAST(PRINTF('%.6e', -60733.41165606832 != -54381.10564306702) AS REAL), 8446, 'v_bwaja'), (24227.630527005007, 999999999999999999999999999999999999999999999999999999999999999999999999, 'v_fgzuu');"
+    print(cleaning_pipeline(sql))
     return
     
 if __name__ == "__main__":
