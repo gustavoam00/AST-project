@@ -429,7 +429,7 @@ def horizontal_delta_debug(queries, test, id = 1):
     for i, q in enumerate(queries):
         tokens = q.split()
         tokens = tokens[:-1]
-        if len(tokens) > 180:
+        if len(tokens) > 150 and tokens[0] == "INSERT":
             minimized_queries.append(q)
             continue
         
