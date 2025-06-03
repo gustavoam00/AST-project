@@ -212,6 +212,9 @@ def trace_context(queries: list[str], index: int, errlist: list[str], msg: tuple
                 for t in tables_in_query:
                     if t not in dependency_tables:
                         dependency_tables.append(t)
+
+        if "END ;" in query:
+            result.insert(0, query)
     
     return tables, result, [queries[index]]
 
