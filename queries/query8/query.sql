@@ -1,4 +1,4 @@
-CREATE TABLE tbl_wqiwo ( icol_dhwup , rcol_eitnk DEFAULT 55001.080638557934 , tcol_yqthy , rcol_bjzii , tcol_wskpp ) ;
-INSERT OR ABORT INTO tbl_wqiwo ( rcol_eitnk , tcol_wskpp , tcol_yqthy ) VALUES ( 1.0 , 11960.180152676927 , CAST ( 'rAag' AS ) ) , ( CAST ( ( NULL ) / NULLIF ( 0 , 0 ) AS ) , 3802.849483805112 , 1 ) , ( CAST ( ( '%.6e' ) AS ) , 8446 , 'v_bwaja' ) , ( 24227.630527005007 , 999999999999999999999999999999999999999999999999999999999999999999999999 , 'v_fgzuu' ) ;
+CREATE TABLE tbl_wqiwo ( rcol_eitnk , tcol_yqthy , rcol_bjzii , tcol_wskpp ) ;
+INSERT INTO tbl_wqiwo ( tcol_wskpp ) VALUES ( 11960.180152676927 ) , ( 3802.849483805112 ) , ( 8446 ) , ( 999999999999999999999999999999999999999999999999999999999999999999999999 ) ;
 ALTER TABLE tbl_wqiwo ADD icol_ovpnc ;
-WITH with_vysww AS ( SELECT * FROM tbl_wqiwo WHERE ( ( EXISTS ( SELECT SUM ( COALESCE ( NULL , CAST ( -551 AS ) ) ) WHERE ( tbl_wqiwo.icol_ovpnc IN ( 1 , 1 , 1 , 1 ) NOT NULL ) ) OR tbl_wqiwo.tcol_yqthy LIKE 'v_hkpkj' ) AND ( SELECT 1 WHERE tbl_wqiwo.icol_dhwup IS NULL ) ) ORDER BY tbl_wqiwo.tcol_wskpp ) , with_ekqzi AS ( SELECT * FROM with_vysww WHERE with_vysww.icol_jcscw != 5472 ) , with_kepqw AS ( SELECT * FROM with_vysww GROUP BY with_vysww.icol_ovpnc ORDER BY with_vysww.rcol_bjzii ) SELECT * FROM with_kepqw ;
+WITH with_vysww AS ( SELECT * FROM tbl_wqiwo WHERE ( ( EXISTS ( SELECT COALESCE IN ( ) ) ) ) ORDER BY tbl_wqiwo.tcol_wskpp ) , with_kepqw AS ( SELECT * FROM with_vysww ORDER BY with_vysww.rcol_bjzii ) SELECT * FROM with_kepqw ;

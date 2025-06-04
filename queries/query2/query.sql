@@ -1,3 +1,3 @@
-CREATE TABLE IF NOT EXISTS t_DX44 ( c_LGUf , c_Hlmf3w , c_ewZ , c_EwP , c_YBA7sBV CHECK ( length ( c_YBA7sBV ) ) ) ;
-INSERT OR FAIL INTO t_DX44 ( c_LGUf , c_Hlmf3w , c_ewZ , c_EwP , c_YBA7sBV ) VALUES ( -958347 , 803354.0705377955 , 'MQ_2' , 'qrZM84MTMHUkkov_3' , 'IcJ_4' ) , ( 1119541 , 661160.0780749931 , '7131k8CH2I7rflmaZmFh_102' , '1sGjUivjzF_103' , 'fwAI_104' ) , ( 2703615 , 419682.84648422664 , '6u2sAbJVjXHWP_202' , 'YpYYmjS_203' , 'AyMTHlf_204' ) ;
-SELECT ( 1 ) FROM t_DX44 WHERE ( t_DX44.c_EwP / t_DX44.c_ewZ ) GROUP BY c_ewZ , c_Hlmf3w ;
+CREATE TABLE t_DX44 ( c_LGUf , c_Hlmf3w , c_ewZ , c_EwP , c_YBA7sBV CHECK ( c_YBA7sBV > 0 ) ) ;
+INSERT INTO t_DX44 ( c_ewZ , c_EwP ) VALUES ( 'MQ_2' , 'qrZM84MTMHUkkov_3' ) , ( '7131k8CH2I7rflmaZmFh_102' , '1sGjUivjzF_103' ) , ( '6u2sAbJVjXHWP_202' , 'YpYYmjS_203' ) ;
+SELECT 1 FROM t_DX44 WHERE t_DX44.c_EwP / t_DX44.c_ewZ ;

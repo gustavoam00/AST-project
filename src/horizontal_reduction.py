@@ -427,8 +427,12 @@ def horizontal_delta_debug(queries, test, id = 1):
     minimized_queries = []
 
     for i, q in enumerate(queries):
-        tokens = q.split()
-        tokens = tokens[:-1]
+        tokens = q.strip().split()
+        add = ['']
+        if tokens[-1] == ';':
+            tokens = tokens[:-1]
+            add = [';']
+            
         if len(tokens) > 150 and tokens[0] == "INSERT":
             minimized_queries.append(q)
             continue
@@ -436,20 +440,20 @@ def horizontal_delta_debug(queries, test, id = 1):
         if id == 0:
             reduced_tokens = delta_debug_extra(
                 tokens,
-                lambda new_tokens: check_query_tokens(new_tokens+[';'], i, minimized_queries, queries, test)
+                lambda new_tokens: check_query_tokens(new_tokens+add, i, minimized_queries, queries, test)
             )
         elif id == 1:
             reduced_tokens = delta_debug(
                 tokens,
-                lambda new_tokens: check_query_tokens(new_tokens+[';'], i, minimized_queries, queries, test)
+                lambda new_tokens: check_query_tokens(new_tokens+add, i, minimized_queries, queries, test)
             )
         else:
             reduced_tokens = sliding_window(
                 tokens,
-                lambda new_tokens: check_query_tokens(new_tokens+[';'], i, minimized_queries, queries, test)
+                lambda new_tokens: check_query_tokens(new_tokens+add, i, minimized_queries, queries, test)
             )
         if reduced_tokens:
-            minimized_queries.append(' '.join(reduced_tokens+[';']))
+            minimized_queries.append(' '.join(reduced_tokens+add))
 
     return minimized_queries
 
