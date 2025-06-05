@@ -8,7 +8,6 @@ RUN sudo apt update && \
 WORKDIR /app
 
 COPY source_code.zip .
-COPY reducer .
 
 USER root
 RUN unzip source_code.zip && rm source_code.zip && \
