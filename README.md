@@ -2,7 +2,7 @@
 
 This project was developed as part of the *Automatic Software Testing (AST)* course at ETH Zurich. 
 
-Two tools were developed: a fuzzer to generate SQLite bug-triggering queries and a reducer to reducer the bug-triggering queries.
+Two tools were developed: a fuzzer to generate SQLite bug-triggering queries and a reducer to minimize the bug-triggering queries.
 
 ---
 
