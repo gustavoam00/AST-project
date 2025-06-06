@@ -1,6 +1,0 @@
-CREATE TABLE t0 ( c0 PRIMARY KEY , c4 ) ;
-CREATE TABLE t3 ( c0 , c7 ) ;
-CREATE TABLE t5 ( c0 , c1 ) ;
-INSERT INTO t5 ( c1 ) VALUES ( -7608565 ) , ( -2444631 ) , ( -1947983 ) , ( 923750 ) , ( -2877915 ) , ( 4636258 ) , ( -584367 ) , ( 1509128 ) , ( 3353807 ) , ( 4349642 ) , ( -1990450 ) , ( 684380 ) , ( 3937253 ) , ( 2005450 ) , ( -5586608 ) , ( -5313409 ) , ( 7771574 ) , ( 2940263 ) , ( 6088621 ) , ( -2685025 ) , ( -6561348 ) , ( -1470225 ) , ( 6645446 ) , ( 2778922 ) , ( 3359107 ) , ( -1028521 ) , ( -5416584 ) , ( -8072188 ) , ( 5315105 ) , ( -8369543 ) , ( 83100 ) , ( 1579836 ) , ( 930168 ) , ( -901863 ) , ( 8124048 ) , ( 5302984 ) , ( 3912383 ) , ( 5112056 ) , ( 500598 ) , ( -5392615 ) , ( 7774759 ) , ( -5546456 ) , ( -7571907 ) , ( -4702394 ) ;
-INSERT INTO t3 ( c7 ) VALUES ( 'TDyve4sk' ) , ( '.LP300i_b7xlEk!6-WlF' ) ;
-WITH t1_stats AS ( SELECT c1 , COUNT ( ) count , c0 avg_pk FROM t5 GROUP BY c1 ) , t2_derived AS ( SELECT c0 , 'Unknown' category FROM t3 ) SELECT main.* , ( SELECT AVG ( count ) FROM t1_stats ) , ( SELECT COUNT ( ) FROM ( SELECT LEAD ( t3.c4 ) OVER ( ) FROM t0 t3 WHERE t3.c0 IN ( SELECT td.c0 FROM t2_derived td UNION SELECT ts.avg_pk FROM t1_stats ts WHERE main.c1 ) ) ) FROM ( SELECT ts.c1 , td.category , ts.avg_pk , DENSE_RANK ( ) OVER ( ) FROM t1_stats ts JOIN t2_derived td ) main ORDER BY main.category ;
