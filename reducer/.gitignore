@@ -21,8 +21,6 @@ sdist/
 var/
 wheels/
 bugs/
-db/
-queries/
 queries2/
 share/python-wheels/
 *.egg-info/

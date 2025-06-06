@@ -1,0 +1,404 @@
+Running reducer for query1...
+INITIAL RUN (0.129s): 2 (number of queries) 206 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.210s): 2 (number of queries) 206 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (0.991s): 2 (number of queries) 206 (number of tokens)
+SUCCESS: FIRST CLEANED (0.261s): 2 (number of queries), 39 (number of tokens)
+SUCCESS: CASE REDUCTION (0.245s): 2 (number of queries), 39 (number of tokens)
+SUCCESS: REDUCTION (0.245s): 2 (number of queries), 39 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.296s): 2 (number of queries), 39 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.441s): 2 (number of queries), 39 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (13.186s): 2 (number of queries), 34 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (18.827s): 2 (number of queries), 34 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.851s): 2 (number of queries), 34 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.182s): 2 (number of queries), 34 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.348s): 2 (number of queries), 34 (number of tokens)
+SUCCESS: SECOND CLEANED (0.273s): 2 (number of queries), 34 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.217s): 2 (number of queries), 34 (number of tokens)
+TOTAL RUN TIME: 36.974s
+FINAL NUMBER OF QUERIES: 2 from 2
+FINAL NUMBER OF TOKENS: 34 from 206
+
+Running reducer for query2...
+INITIAL RUN (0.456s): 18 (number of queries) 459 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.381s): 7 (number of queries) 300 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (6.471s): 3 (number of queries) 140 (number of tokens)
+SUCCESS: FIRST CLEANED (0.279s): 3 (number of queries), 133 (number of tokens)
+SUCCESS: CASE REDUCTION (0.574s): 3 (number of queries), 119 (number of tokens)
+SUCCESS: REDUCTION (0.326s): 3 (number of queries), 119 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.288s): 3 (number of queries), 119 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.512s): 3 (number of queries), 119 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (36.888s): 3 (number of queries), 98 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (65.547s): 3 (number of queries), 87 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (2.167s): 3 (number of queries), 81 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.264s): 3 (number of queries), 70 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (2.891s): 3 (number of queries), 57 (number of tokens)
+SUCCESS: SECOND CLEANED (0.261s): 3 (number of queries), 57 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.266s): 3 (number of queries), 57 (number of tokens)
+TOTAL RUN TIME: 117.806s
+FINAL NUMBER OF QUERIES: 3 from 18
+FINAL NUMBER OF TOKENS: 57 from 459
+
+Running reducer for query3...
+INITIAL RUN (8.370s): 117 (number of queries) 1527 (number of tokens)
+SUCCESS: TRACE CONTEXT (1.941s): 50 (number of queries) 813 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (4.074s): 6 (number of queries) 89 (number of tokens)
+SUCCESS: FIRST CLEANED (0.374s): 6 (number of queries), 75 (number of tokens)
+SUCCESS: CASE REDUCTION (0.388s): 6 (number of queries), 75 (number of tokens)
+SUCCESS: REDUCTION (0.570s): 6 (number of queries), 75 (number of tokens)
+SUCCESS: SECOND VERTICAL DELTA DEBUG (6.377s): 4 (number of queries), 56 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.333s): 4 (number of queries), 51 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.790s): 4 (number of queries), 51 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (21.080s): 4 (number of queries), 41 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (26.984s): 4 (number of queries), 38 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.999s): 4 (number of queries), 38 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.370s): 4 (number of queries), 38 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (1.192s): 4 (number of queries), 39 (number of tokens)
+SUCCESS: SECOND CLEANED (0.274s): 4 (number of queries), 39 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.251s): 3 (number of queries), 32 (number of tokens)
+TOTAL RUN TIME: 74.697s
+FINAL NUMBER OF QUERIES: 3 from 117
+FINAL NUMBER OF TOKENS: 32 from 1527
+
+Running reducer for query4...
+INITIAL RUN (3.455s): 42 (number of queries) 929 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.475s): 9 (number of queries) 255 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (10.451s): 4 (number of queries) 124 (number of tokens)
+SUCCESS: FIRST CLEANED (0.287s): 4 (number of queries), 111 (number of tokens)
+SUCCESS: CASE REDUCTION (0.292s): 4 (number of queries), 111 (number of tokens)
+SUCCESS: REDUCTION (0.281s): 4 (number of queries), 111 (number of tokens)
+FAILED: FIRST INSERT COMPRESSION (0.198s): 4 (number of queries), 111 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (2.630s): 4 (number of queries), 87 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (34.606s): 4 (number of queries), 78 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (65.322s): 4 (number of queries), 71 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (2.303s): 4 (number of queries), 69 (number of tokens)
+FAILED: SECOND INSERT COMPRESSION (0.213s): 4 (number of queries), 69 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (1.097s): 4 (number of queries), 69 (number of tokens)
+SUCCESS: SECOND CLEANED (0.293s): 4 (number of queries), 69 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.291s): 4 (number of queries), 69 (number of tokens)
+TOTAL RUN TIME: 122.470s
+FINAL NUMBER OF QUERIES: 4 from 42
+FINAL NUMBER OF TOKENS: 69 from 929
+
+Running reducer for query5...
+INITIAL RUN (0.371s): 5 (number of queries) 66 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.295s): 3 (number of queries) 43 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (2.201s): 3 (number of queries) 43 (number of tokens)
+SUCCESS: FIRST CLEANED (0.338s): 3 (number of queries), 43 (number of tokens)
+SUCCESS: CASE REDUCTION (0.225s): 3 (number of queries), 43 (number of tokens)
+SUCCESS: REDUCTION (0.238s): 3 (number of queries), 43 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.245s): 3 (number of queries), 43 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.416s): 3 (number of queries), 43 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (13.973s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (22.076s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.552s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.222s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.502s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: SECOND CLEANED (0.242s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.230s): 3 (number of queries), 39 (number of tokens)
+TOTAL RUN TIME: 42.347s
+FINAL NUMBER OF QUERIES: 3 from 5
+FINAL NUMBER OF TOKENS: 39 from 66
+
+Running reducer for query6...
+INITIAL RUN (0.720s): 16 (number of queries) 2790 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.152s): 2 (number of queries) 173 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (0.624s): 2 (number of queries) 173 (number of tokens)
+SUCCESS: FIRST CLEANED (0.138s): 2 (number of queries), 151 (number of tokens)
+SUCCESS: CASE REDUCTION (0.555s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: REDUCTION (0.165s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.173s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.366s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (33.738s): 2 (number of queries), 83 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (47.732s): 2 (number of queries), 75 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.765s): 2 (number of queries), 75 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.182s): 2 (number of queries), 75 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.386s): 2 (number of queries), 75 (number of tokens)
+SUCCESS: SECOND CLEANED (0.187s): 2 (number of queries), 75 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.186s): 2 (number of queries), 75 (number of tokens)
+TOTAL RUN TIME: 86.250s
+FINAL NUMBER OF QUERIES: 2 from 16
+FINAL NUMBER OF TOKENS: 75 from 2790
+
+Running reducer for query7...
+INITIAL RUN (1.573s): 32 (number of queries) 553 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.229s): 2 (number of queries) 27 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (1.011s): 2 (number of queries) 27 (number of tokens)
+SUCCESS: FIRST CLEANED (0.230s): 2 (number of queries), 25 (number of tokens)
+SUCCESS: CASE REDUCTION (0.212s): 2 (number of queries), 25 (number of tokens)
+SUCCESS: REDUCTION (0.201s): 2 (number of queries), 25 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.234s): 2 (number of queries), 25 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.423s): 2 (number of queries), 25 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (7.700s): 2 (number of queries), 22 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (11.015s): 2 (number of queries), 22 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.636s): 2 (number of queries), 18 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.235s): 2 (number of queries), 18 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.481s): 2 (number of queries), 18 (number of tokens)
+SUCCESS: SECOND CLEANED (0.210s): 2 (number of queries), 18 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.160s): 2 (number of queries), 18 (number of tokens)
+TOTAL RUN TIME: 24.730s
+FINAL NUMBER OF QUERIES: 2 from 32
+FINAL NUMBER OF TOKENS: 18 from 553
+
+Running reducer for query8...
+INITIAL RUN (0.561s): 41 (number of queries) 1539 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.432s): 6 (number of queries) 431 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (7.301s): 4 (number of queries) 221 (number of tokens)
+SUCCESS: FIRST CLEANED (0.291s): 4 (number of queries), 188 (number of tokens)
+SUCCESS: CASE REDUCTION (0.289s): 4 (number of queries), 188 (number of tokens)
+SUCCESS: REDUCTION (0.326s): 4 (number of queries), 175 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.320s): 4 (number of queries), 175 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.510s): 4 (number of queries), 175 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (73.582s): 4 (number of queries), 140 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (109.603s): 4 (number of queries), 108 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (3.062s): 4 (number of queries), 104 (number of tokens)
+FAILED: SECOND INSERT COMPRESSION (0.236s): 4 (number of queries), 104 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (1.608s): 4 (number of queries), 84 (number of tokens)
+SUCCESS: SECOND CLEANED (0.283s): 4 (number of queries), 84 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.259s): 4 (number of queries), 84 (number of tokens)
+TOTAL RUN TIME: 198.925s
+FINAL NUMBER OF QUERIES: 4 from 41
+FINAL NUMBER OF TOKENS: 84 from 1539
+
+Running reducer for query9...
+INITIAL RUN (1.786s): 30 (number of queries) 1153 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.243s): 1 (number of queries) 36 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (0.250s): 1 (number of queries) 36 (number of tokens)
+SUCCESS: FIRST CLEANED (0.236s): 1 (number of queries), 36 (number of tokens)
+SUCCESS: CASE REDUCTION (0.189s): 1 (number of queries), 36 (number of tokens)
+SUCCESS: REDUCTION (0.188s): 1 (number of queries), 36 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.172s): 1 (number of queries), 36 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.336s): 1 (number of queries), 36 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (10.086s): 1 (number of queries), 35 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (19.062s): 1 (number of queries), 35 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (1.037s): 1 (number of queries), 33 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.170s): 1 (number of queries), 33 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.300s): 1 (number of queries), 33 (number of tokens)
+SUCCESS: SECOND CLEANED (0.162s): 1 (number of queries), 33 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.184s): 1 (number of queries), 33 (number of tokens)
+TOTAL RUN TIME: 34.626s
+FINAL NUMBER OF QUERIES: 1 from 30
+FINAL NUMBER OF TOKENS: 33 from 1153
+
+Running reducer for query10...
+INITIAL RUN (0.331s): 8 (number of queries) 249 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.279s): 4 (number of queries) 144 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (3.658s): 2 (number of queries) 88 (number of tokens)
+SUCCESS: FIRST CLEANED (0.227s): 2 (number of queries), 83 (number of tokens)
+SUCCESS: CASE REDUCTION (0.204s): 2 (number of queries), 83 (number of tokens)
+SUCCESS: REDUCTION (0.200s): 2 (number of queries), 83 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.226s): 2 (number of queries), 83 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.476s): 2 (number of queries), 83 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (23.233s): 2 (number of queries), 74 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (40.276s): 2 (number of queries), 56 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.978s): 2 (number of queries), 56 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.234s): 2 (number of queries), 56 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.429s): 2 (number of queries), 56 (number of tokens)
+SUCCESS: SECOND CLEANED (0.224s): 2 (number of queries), 56 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.213s): 2 (number of queries), 56 (number of tokens)
+TOTAL RUN TIME: 71.426s
+FINAL NUMBER OF QUERIES: 2 from 8
+FINAL NUMBER OF TOKENS: 56 from 249
+
+Running reducer for query11...
+INITIAL RUN (0.304s): 4 (number of queries) 111 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.318s): 4 (number of queries) 111 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (3.283s): 3 (number of queries) 92 (number of tokens)
+FAILED: FIRST CLEANED (0.294s): 3 (number of queries) 92 (number of tokens)
+SUCCESS: FIRST CLEANED AGAIN (0.865s): 3 (number of queries), 59 (number of tokens)
+SUCCESS: CASE REDUCTION (0.145s): 3 (number of queries), 59 (number of tokens)
+SUCCESS: REDUCTION (0.202s): 3 (number of queries), 59 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.250s): 3 (number of queries), 59 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.500s): 3 (number of queries), 59 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (20.083s): 3 (number of queries), 50 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (32.584s): 3 (number of queries), 47 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (1.709s): 3 (number of queries), 41 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.213s): 3 (number of queries), 41 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.437s): 3 (number of queries), 41 (number of tokens)
+SUCCESS: SECOND CLEANED (0.281s): 3 (number of queries), 41 (number of tokens)
+FAILED: TRACE CONTEXT (0.241s): 3 (number of queries), 41 (number of tokens)
+TOTAL RUN TIME: 61.905s
+FINAL NUMBER OF QUERIES: 3 from 4
+FINAL NUMBER OF TOKENS: 41 from 111
+
+Running reducer for query12...
+INITIAL RUN (14.415s): 190 (number of queries) 3583 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.998s): 22 (number of queries) 409 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (2.534s): 4 (number of queries) 85 (number of tokens)
+SUCCESS: FIRST CLEANED (0.271s): 4 (number of queries), 80 (number of tokens)
+SUCCESS: CASE REDUCTION (0.282s): 4 (number of queries), 80 (number of tokens)
+SUCCESS: REDUCTION (0.286s): 4 (number of queries), 80 (number of tokens)
+SUCCESS: SECOND VERTICAL DELTA DEBUG (2.636s): 4 (number of queries), 80 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.239s): 3 (number of queries), 76 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (3.004s): 3 (number of queries), 59 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (18.436s): 3 (number of queries), 49 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (27.185s): 3 (number of queries), 41 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (1.122s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.249s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.793s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: SECOND CLEANED (0.252s): 3 (number of queries), 39 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.227s): 3 (number of queries), 39 (number of tokens)
+TOTAL RUN TIME: 73.173s
+FINAL NUMBER OF QUERIES: 3 from 190
+FINAL NUMBER OF TOKENS: 39 from 3583
+
+Running reducer for query13...
+INITIAL RUN (1.042s): 13 (number of queries) 259 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.254s): 4 (number of queries) 104 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (2.317s): 4 (number of queries) 104 (number of tokens)
+SUCCESS: FIRST CLEANED (0.198s): 4 (number of queries), 94 (number of tokens)
+SUCCESS: CASE REDUCTION (0.211s): 4 (number of queries), 94 (number of tokens)
+SUCCESS: REDUCTION (0.229s): 4 (number of queries), 94 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.217s): 4 (number of queries), 94 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.456s): 4 (number of queries), 94 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (23.144s): 4 (number of queries), 57 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (31.702s): 4 (number of queries), 45 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (1.754s): 4 (number of queries), 45 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.214s): 4 (number of queries), 45 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.421s): 4 (number of queries), 45 (number of tokens)
+SUCCESS: SECOND CLEANED (0.210s): 4 (number of queries), 45 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.178s): 2 (number of queries), 31 (number of tokens)
+TOTAL RUN TIME: 62.713s
+FINAL NUMBER OF QUERIES: 2 from 13
+FINAL NUMBER OF TOKENS: 31 from 259
+
+Running reducer for query14...
+INITIAL RUN (39.458s): 534 (number of queries) 9886 (number of tokens)
+SUCCESS: TRACE CONTEXT (3.070s): 161 (number of queries) 2938 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (204.311s): 50 (number of queries) 847 (number of tokens)
+SUCCESS: FIRST CLEANED (0.990s): 50 (number of queries), 826 (number of tokens)
+SUCCESS: CASE REDUCTION (2.157s): 50 (number of queries), 811 (number of tokens)
+SUCCESS: REDUCTION (1.088s): 50 (number of queries), 811 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.260s): 6 (number of queries), 635 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (3.316s): 6 (number of queries), 437 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (93.200s): 6 (number of queries), 368 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (142.883s): 6 (number of queries), 341 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (11.795s): 6 (number of queries), 337 (number of tokens)
+FAILED: SECOND INSERT COMPRESSION (0.196s): 6 (number of queries), 337 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.919s): 6 (number of queries), 337 (number of tokens)
+SUCCESS: SECOND CLEANED (0.213s): 6 (number of queries), 337 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.192s): 6 (number of queries), 337 (number of tokens)
+TOTAL RUN TIME: 504.262s
+FINAL NUMBER OF QUERIES: 6 from 534
+FINAL NUMBER OF TOKENS: 337 from 9886
+
+Running reducer for query15...
+INITIAL RUN (0.855s): 13 (number of queries) 206 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.639s): 13 (number of queries) 206 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (22.006s): 6 (number of queries) 105 (number of tokens)
+FAILED: FIRST CLEANED (0.377s): 6 (number of queries) 105 (number of tokens)
+SUCCESS: FIRST CLEANED AGAIN (2.516s): 6 (number of queries), 99 (number of tokens)
+SUCCESS: CASE REDUCTION (0.393s): 6 (number of queries), 99 (number of tokens)
+SUCCESS: REDUCTION (0.313s): 6 (number of queries), 99 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.325s): 6 (number of queries), 87 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (2.949s): 6 (number of queries), 87 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (38.248s): 6 (number of queries), 72 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (54.728s): 6 (number of queries), 64 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (1.242s): 6 (number of queries), 64 (number of tokens)
+FAILED: SECOND INSERT COMPRESSION (0.334s): 6 (number of queries), 64 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (1.387s): 6 (number of queries), 64 (number of tokens)
+SUCCESS: SECOND CLEANED (0.399s): 6 (number of queries), 64 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.360s): 6 (number of queries), 64 (number of tokens)
+TOTAL RUN TIME: 127.514s
+FINAL NUMBER OF QUERIES: 6 from 13
+FINAL NUMBER OF TOKENS: 64 from 206
+
+Running reducer for query16...
+INITIAL RUN (0.203s): 2 (number of queries) 3522 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.241s): 2 (number of queries) 3522 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (0.983s): 2 (number of queries) 3522 (number of tokens)
+SUCCESS: FIRST CLEANED (0.203s): 2 (number of queries), 3337 (number of tokens)
+SUCCESS: CASE REDUCTION (6.437s): 2 (number of queries), 2482 (number of tokens)
+SUCCESS: REDUCTION (0.176s): 2 (number of queries), 208 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.192s): 2 (number of queries), 208 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.438s): 2 (number of queries), 208 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (53.764s): 2 (number of queries), 144 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (74.175s): 2 (number of queries), 83 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.995s): 2 (number of queries), 81 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.186s): 2 (number of queries), 81 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.372s): 2 (number of queries), 81 (number of tokens)
+SUCCESS: SECOND CLEANED (0.214s): 2 (number of queries), 81 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.179s): 2 (number of queries), 81 (number of tokens)
+TOTAL RUN TIME: 138.910s
+FINAL NUMBER OF QUERIES: 2 from 2
+FINAL NUMBER OF TOKENS: 81 from 3522
+
+Running reducer for query17...
+INITIAL RUN (3.378s): 47 (number of queries) 9824 (number of tokens)
+SUCCESS: TRACE CONTEXT (3.570s): 47 (number of queries) 9824 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (42.041s): 3 (number of queries) 232 (number of tokens)
+SUCCESS: FIRST CLEANED (0.365s): 3 (number of queries), 194 (number of tokens)
+SUCCESS: CASE REDUCTION (0.329s): 3 (number of queries), 194 (number of tokens)
+SUCCESS: REDUCTION (0.364s): 3 (number of queries), 194 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.319s): 3 (number of queries), 194 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (1.572s): 3 (number of queries), 194 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (77.398s): 3 (number of queries), 128 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (135.448s): 3 (number of queries), 124 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (8.261s): 3 (number of queries), 108 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.383s): 3 (number of queries), 108 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (1.572s): 3 (number of queries), 108 (number of tokens)
+SUCCESS: SECOND CLEANED (0.325s): 3 (number of queries), 104 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.304s): 3 (number of queries), 104 (number of tokens)
+TOTAL RUN TIME: 275.983s
+FINAL NUMBER OF QUERIES: 3 from 47
+FINAL NUMBER OF TOKENS: 104 from 9824
+
+Running reducer for query18...
+INITIAL RUN (0.147s): 2 (number of queries) 154 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.149s): 2 (number of queries) 154 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (0.625s): 2 (number of queries) 154 (number of tokens)
+SUCCESS: FIRST CLEANED (0.137s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: CASE REDUCTION (0.583s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: REDUCTION (0.196s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.219s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.406s): 2 (number of queries), 142 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (35.644s): 2 (number of queries), 110 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (55.144s): 2 (number of queries), 71 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.714s): 2 (number of queries), 71 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.168s): 2 (number of queries), 71 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.321s): 2 (number of queries), 71 (number of tokens)
+SUCCESS: SECOND CLEANED (0.180s): 2 (number of queries), 71 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.177s): 2 (number of queries), 71 (number of tokens)
+TOTAL RUN TIME: 94.986s
+FINAL NUMBER OF QUERIES: 2 from 2
+FINAL NUMBER OF TOKENS: 71 from 154
+
+Running reducer for query19...
+INITIAL RUN (0.266s): 4 (number of queries) 197 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.276s): 4 (number of queries) 197 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (2.722s): 4 (number of queries) 197 (number of tokens)
+SUCCESS: FIRST CLEANED (0.276s): 4 (number of queries), 181 (number of tokens)
+SUCCESS: CASE REDUCTION (0.312s): 4 (number of queries), 181 (number of tokens)
+SUCCESS: REDUCTION (0.302s): 4 (number of queries), 181 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.345s): 4 (number of queries), 172 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (2.076s): 4 (number of queries), 115 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (45.980s): 4 (number of queries), 105 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (66.070s): 4 (number of queries), 60 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (1.834s): 4 (number of queries), 53 (number of tokens)
+FAILED: SECOND INSERT COMPRESSION (0.335s): 4 (number of queries), 53 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.814s): 4 (number of queries), 53 (number of tokens)
+SUCCESS: SECOND CLEANED (0.271s): 4 (number of queries), 53 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.358s): 4 (number of queries), 53 (number of tokens)
+TOTAL RUN TIME: 122.500s
+FINAL NUMBER OF QUERIES: 4 from 4
+FINAL NUMBER OF TOKENS: 53 from 197
+
+Running reducer for query20...
+INITIAL RUN (0.433s): 16 (number of queries) 6500 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.210s): 2 (number of queries) 252 (number of tokens)
+SUCCESS: FIRST VERTICAL DELTA DEBUG (0.798s): 2 (number of queries) 252 (number of tokens)
+SUCCESS: FIRST CLEANED (0.162s): 2 (number of queries), 231 (number of tokens)
+SUCCESS: CASE REDUCTION (1.114s): 2 (number of queries), 189 (number of tokens)
+SUCCESS: REDUCTION (0.137s): 2 (number of queries), 189 (number of tokens)
+SUCCESS: FIRST INSERT COMPRESSION (0.128s): 2 (number of queries), 189 (number of tokens)
+SUCCESS: FIRST COLUMN MINIMIZER (0.300s): 2 (number of queries), 189 (number of tokens)
+SUCCESS: HORIZONTAL DELTA DEBUG (32.288s): 2 (number of queries), 79 (number of tokens)
+SUCCESS: SLIDING WINDOW DEBUG (47.328s): 2 (number of queries), 79 (number of tokens)
+SUCCESS: PARENTHESIS REMOVAL (0.545s): 2 (number of queries), 79 (number of tokens)
+SUCCESS: SECOND INSERT COMPRESSION (0.195s): 2 (number of queries), 79 (number of tokens)
+SUCCESS: SECOND COLUMN MINIMIZER (0.331s): 2 (number of queries), 79 (number of tokens)
+SUCCESS: SECOND CLEANED (0.172s): 2 (number of queries), 79 (number of tokens)
+SUCCESS: TRACE CONTEXT (0.174s): 2 (number of queries), 79 (number of tokens)
+TOTAL RUN TIME: 84.486s
+FINAL NUMBER OF QUERIES: 2 from 16
+FINAL NUMBER OF TOKENS: 79 from 6500
+
